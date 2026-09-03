@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\ExpenseSplitter.Application\ExpenseSplitter.Application.csproj" />
+    <ProjectReference Include="..\ExpenseSplitter.Infrastructure\ExpenseSplitter.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+</Project>
