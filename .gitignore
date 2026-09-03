@@ -1,0 +1,23 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# IDE settings
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.iml
+_ReSharper.Caches/
+
+# Local configuration and secrets
+appsettings.Development.local.json
+secrets.json
