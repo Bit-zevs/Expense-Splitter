@@ -102,7 +102,7 @@ public static class SettlementCalculator
         }
     }
 
-    private struct ParticipantBalance(Guid participantId)
+    private sealed class ParticipantBalance(Guid participantId)
     {
         public Guid ParticipantId { get; } = participantId;
 
