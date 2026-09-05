@@ -28,11 +28,11 @@ public sealed record SettlementTransfer
                 nameof(toParticipantId));
         }
 
-        if (amount <= 0 || amount > decimal.MaxValue / 100m || amount % 0.01m != 0)
+        if (amount <= 0 || amount % 0.01m != 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(amount),
-                "Transfer amount must be positive, fit in decimal cents, and have at most two decimal places.");
+                "Transfer amount must be positive and have at most two decimal places.");
         }
 
         FromParticipantId = fromParticipantId;

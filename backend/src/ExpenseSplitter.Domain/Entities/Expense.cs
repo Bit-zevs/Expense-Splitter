@@ -1,5 +1,6 @@
 using ExpenseSplitter.Domain.Enums;
 using ExpenseSplitter.Domain.ValueObjects;
+using System.Numerics;
 
 namespace ExpenseSplitter.Domain.Entities;
 
@@ -71,7 +72,12 @@ public sealed class Expense
             throw new ArgumentException("Expense shares must have unique participants.", nameof(shares));
         }
 
-        if (materializedShares.Sum(share => share.Amount) != amount)
+        var shareTotalInCents = materializedShares.Aggregate(
+            BigInteger.Zero,
+            (total, share) => total + new BigInteger(share.Amount * 100m));
+        var amountInCents = new BigInteger(amount * 100m);
+
+        if (shareTotalInCents != amountInCents)
         {
             throw new ArgumentException("The sum of expense shares must equal the expense amount.", nameof(shares));
         }
