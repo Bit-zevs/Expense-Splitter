@@ -1,4 +1,4 @@
-namespace ExpenseSplitter.Domain.Trips;
+namespace ExpenseSplitter.Domain.Enums;
 
 public enum SplitType
 {
