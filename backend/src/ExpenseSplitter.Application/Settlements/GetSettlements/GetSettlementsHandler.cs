@@ -21,19 +21,22 @@ public sealed class GetSettlementsHandler(ITripStore tripStore)
         Guid tripId,
         CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindAggregateByIdAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(
+            tripId,
+            cancellationToken);
         if (trip is null)
         {
             return null;
         }
 
-        var balances = ParticipantBalanceCalculator.Calculate(trip)
+        var calculatedBalances = ParticipantBalanceCalculator.Calculate(trip);
+        var balances = calculatedBalances
             .Select(balance => new SettlementBalanceResult(
                 balance.ParticipantId,
                 ToDecimalAmount(balance.AmountInCents)))
             .ToArray();
 
-        var transfers = SettlementCalculator.Calculate(trip)
+        var transfers = SettlementCalculator.CalculateFromBalances(calculatedBalances)
             .Select(transfer => new SettlementTransferResult(
                 transfer.FromParticipantId,
                 transfer.ToParticipantId,

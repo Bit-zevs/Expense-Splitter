@@ -8,9 +8,29 @@ public interface ITripStore
 
     Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<Trip?> FindAggregateByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<Trip?> FindAggregateForUpdateAsync(Guid id, CancellationToken cancellationToken);
+    Task<Trip?> FindWithParticipantsByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<Trip?> FindWithExpensesByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<Trip?> FindWithParticipantsForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<Participant?> FindParticipantByIdAsync(
+        Guid tripId,
+        Guid participantId,
+        CancellationToken cancellationToken);
+
+    Task<Expense?> FindExpenseByIdAsync(
+        Guid tripId,
+        Guid expenseId,
+        CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

@@ -232,6 +232,22 @@ public sealed class SettlementCalculatorTests
     }
 
     [Fact]
+    public void CalculatesFromExistingBalancesWithoutChangingThem()
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        trip.AddEqualExpense(10m, "Expense", payer.Id, new[] { debtor.Id });
+        var balances = ParticipantBalanceCalculator.Calculate(trip);
+        var expectedAmounts = balances.Select(balance => balance.AmountInCents).ToArray();
+
+        var transfers = SettlementCalculator.CalculateFromBalances(balances);
+
+        Assert.Single(transfers);
+        Assert.Equal(expectedAmounts, balances.Select(balance => balance.AmountInCents));
+    }
+
+    [Fact]
     public void RejectsNullTrip()
     {
         Assert.Throws<ArgumentNullException>(() => SettlementCalculator.Calculate(null!));

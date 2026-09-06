@@ -12,10 +12,22 @@ public static class SettlementCalculator
     {
         ArgumentNullException.ThrowIfNull(trip);
 
-        var balances = ParticipantBalanceCalculator.Calculate(trip);
+        return CalculateFromBalances(ParticipantBalanceCalculator.Calculate(trip));
+    }
 
-        var creditors = balances.Where(balance => balance.AmountInCents > 0).ToArray();
-        var debtors = balances.Where(balance => balance.AmountInCents < 0).ToArray();
+    public static IReadOnlyCollection<SettlementTransfer> CalculateFromBalances(
+        IReadOnlyCollection<ParticipantBalance> balances)
+    {
+        ArgumentNullException.ThrowIfNull(balances);
+
+        var creditors = balances
+            .Where(balance => balance.AmountInCents > 0)
+            .Select(BalancePosition.FromBalance)
+            .ToArray();
+        var debtors = balances
+            .Where(balance => balance.AmountInCents < 0)
+            .Select(BalancePosition.FromBalance)
+            .ToArray();
         var transfers = new List<SettlementTransfer>();
         var creditorIndex = 0;
         var debtorIndex = 0;
@@ -55,6 +67,16 @@ public static class SettlementCalculator
         }
 
         return transfers.AsReadOnly();
+    }
+
+    private sealed class BalancePosition(Guid participantId, BigInteger amountInCents)
+    {
+        public Guid ParticipantId { get; } = participantId;
+
+        public BigInteger AmountInCents { get; set; } = amountInCents;
+
+        public static BalancePosition FromBalance(ParticipantBalance balance) =>
+            new(balance.ParticipantId, balance.AmountInCents);
     }
 
     private static void AddTransfers(

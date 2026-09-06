@@ -1,5 +1,4 @@
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
-using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Entities;
 using Xunit;
 
@@ -86,7 +85,7 @@ public sealed class CreateEqualExpenseHandlerTests
         Assert.Equal(0, store.SaveCount);
     }
 
-    private sealed class StubTripStore(Trip? trip) : ITripStore
+    private sealed class StubTripStore(Trip? trip) : TripStoreStub
     {
         public Guid RequestedId { get; private set; }
 
@@ -94,17 +93,7 @@ public sealed class CreateEqualExpenseHandlerTests
 
         public List<CancellationToken> CancellationTokens { get; } = [];
 
-        public Task AddAsync(Trip tripToAdd, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<Trip?> FindAggregateByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<Trip?> FindAggregateForUpdateAsync(
+        public override Task<Trip?> FindWithParticipantsForUpdateAsync(
             Guid id,
             CancellationToken cancellationToken)
         {
@@ -113,7 +102,7 @@ public sealed class CreateEqualExpenseHandlerTests
             return Task.FromResult(trip);
         }
 
-        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        public override Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             SaveCount++;
             CancellationTokens.Add(cancellationToken);

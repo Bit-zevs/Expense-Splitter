@@ -18,6 +18,7 @@ public sealed class Trip
         Id = Guid.NewGuid();
         Name = name.Trim();
         CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = CreatedAt.AddTicks(-(CreatedAt.Ticks % 10));
     }
 
     public Guid Id { get; private set; }

@@ -1,5 +1,4 @@
 using ExpenseSplitter.Application.Balances.GetBalances;
-using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Entities;
 using Xunit;
 
@@ -138,30 +137,20 @@ public sealed class GetBalancesHandlerTests
         Assert.Equal(amount, balance.Amount);
     }
 
-    private sealed class StubTripStore(Trip? trip) : ITripStore
+    private sealed class StubTripStore(Trip? trip) : TripStoreStub
     {
         public Guid RequestedId { get; private set; }
 
         public CancellationToken CancellationToken { get; private set; }
 
-        public Task AddAsync(Trip tripToAdd, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<Trip?> FindAggregateByIdAsync(Guid id, CancellationToken cancellationToken)
+        public override Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken)
         {
             RequestedId = id;
             CancellationToken = cancellationToken;
             return Task.FromResult(trip);
         }
 
-        public Task<Trip?> FindAggregateForUpdateAsync(
-            Guid id,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }
