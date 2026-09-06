@@ -17,7 +17,9 @@ public sealed class GetBalancesHandler(ITripStore tripStore)
         IReadOnlyCollection<Guid>? participantIds,
         CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindAggregateByIdAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(
+            tripId,
+            cancellationToken);
         if (trip is null)
         {
             return null;

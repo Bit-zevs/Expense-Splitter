@@ -44,9 +44,13 @@ money precision, aggregate loading, and migration details.
 ## Build and test
 
 ```powershell
-dotnet build .\backend\ExpenseSplitter.Backend.sln
-dotnet test .\backend\ExpenseSplitter.Backend.sln
+dotnet build .\ExpenseSplitter.sln
+dotnet test .\ExpenseSplitter.sln
 ```
+
+Open `ExpenseSplitter.sln` from the repository root in the IDE. It groups the current
+projects under `backend` and leaves the solution root available for future clients and
+other top-level components.
 
 Integration tests require a running Docker engine with Linux containers. They create
 their own temporary PostgreSQL container and databases, apply migrations, and verify

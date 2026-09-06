@@ -2,8 +2,7 @@
 
 Используется PostgreSQL 17 и Npgsql для EF Core 10. Конфигурации находятся в
 `ExpenseSplitter.Infrastructure/Persistence/Configurations`, миграции — рядом
-в `Persistence/Migrations`. Domain-сущности не содержат атрибутов EF и не изменены
-ради хранения данных. В калькуляторе балансов добавлена сортировка участников
+в `Persistence/Migrations`. Domain-сущности не содержат атрибутов EF. В калькуляторе балансов добавлена сортировка участников
 по `Guid`, чтобы взаиморасчёты не зависели от порядка материализации коллекций.
 
 ## Таблицы
@@ -22,8 +21,9 @@
 является результатом расчёта и не сохраняется.
 
 GUID создаёт Domain, для ключей отключена генерация EF/БД. `CreatedAt` также задаёт
-Domain; PostgreSQL хранит UTC в `timestamp(6) with time zone`. Точность времени —
-микросекунды, поэтому при сохранении отбрасываются последние 0–9 тиков .NET.
+Domain и сразу нормализует значение до микросекунд; PostgreSQL хранит UTC в
+`timestamp(6) with time zone`. Поэтому POST-ответ и последующий GET возвращают
+одно и то же значение времени.
 Строки обязательны и хранятся как `text`: Domain не задаёт максимальную длину.
 Имена участников могут совпадать. `SplitType` хранится как `integer`, CHECK допускает
 только `0` (`Equal`); при добавлении способа деления нужно обновить CHECK миграцией.
@@ -75,25 +75,31 @@ FK проверяют существование связанной строки
 ## Загрузка и сохранение
 
 Коллекции настроены на доступ через `_participants`, `_expenses`, `_shares`.
-Для операций над агрегатом нужно загрузить участников и все расходы; owned-доли
-загружаются вместе с расходами. Частично загруженный `Trip` нельзя передавать
-калькулятору взаиморасчётов.
+Хранилище выбирает форму загрузки под use case: добавление участника загружает только
+`Trip`, создание расхода — `Trip` с участниками, чтение коллекции — только нужную
+коллекцию. Полный граф нужен лишь для balances/settlements; owned-доли загружаются
+вместе с расходами. Частично загруженный `Trip` нельзя передавать калькулятору
+взаиморасчётов.
 
 ```csharp
+await using var transaction = await db.Database.BeginTransactionAsync(
+    IsolationLevel.RepeatableRead,
+    cancellationToken);
+
 var trip = await db.Trips
+    .AsNoTracking()
     .Include(trip => trip.Participants)
     .Include(trip => trip.Expenses)
     .AsSplitQuery()
     .SingleAsync(trip => trip.Id == tripId, cancellationToken);
 
-trip.AddEqualExpense(amount, description, payerId, participantIds);
-await db.SaveChangesAsync(cancellationToken);
+await transaction.CommitAsync(cancellationToken);
 ```
 
-Изменения делаются над tracked-агрегатом в одном DbContext. Shadow FK хранятся
-в change tracker; не следует загружать detached-граф и сохранять его слепым `Update`.
-При требованиях к согласованному снимку нескольких SQL-запросов загрузку можно
-выполнять в транзакции с подходящим уровнем изоляции.
+`RepeatableRead` даёт всем частям split-query один PostgreSQL snapshot и не позволяет
+собрать расходы и участников из разных состояний БД. Изменения делаются над
+минимально необходимым tracked-графом в одном DbContext. Shadow FK хранятся в
+change tracker; не следует загружать detached-граф и сохранять его слепым `Update`.
 
 ## Локальный запуск и тесты
 
@@ -117,12 +123,12 @@ dotnet user-secrets set "ConnectionStrings:ExpenseSplitter" "Host=localhost;Port
 
 БД и пользователь Compose — `expense_splitter`, порт опубликован только на loopback.
 Для другой среды задайте `ConnectionStrings__ExpenseSplitter` через окружение
-или секреты. При отсутствии строки подключения регистрация Infrastructure
-выдаёт понятную ошибку. API не применяет миграции автоматически при запуске.
+или секреты. При отсутствии строки подключения API завершает запуск с понятной
+ошибкой до начала обработки запросов. API не применяет миграции автоматически.
 
 ```powershell
-dotnet build backend/ExpenseSplitter.Backend.sln
-dotnet test backend/ExpenseSplitter.Backend.sln
+dotnet build ExpenseSplitter.sln
+dotnet test ExpenseSplitter.sln
 ```
 
 Интеграционные тесты требуют работающий Docker с Linux-контейнерами.
@@ -135,6 +141,7 @@ dotnet test backend/tests/ExpenseSplitter.Infrastructure.Tests --filter FullyQua
 ```
 
 Проверяются round-trip графа, GUID, Unicode и дубли имён, максимальная сумма,
-нулевые доли, добавление расхода после загрузки, стабильность взаиморасчётов,
+нулевые доли, формы загрузки и общий snapshot split-query при конкурентной записи,
+добавление расхода после загрузки, стабильность взаиморасчётов,
 FK и составной PK, каскады, запрет удаления используемого участника, атомарность
 сохранения, CHECK-ограничения, индексы, совпадение модели с миграцией и её откат.

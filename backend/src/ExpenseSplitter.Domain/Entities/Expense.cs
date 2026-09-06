@@ -22,7 +22,7 @@ public sealed class Expense
     public SplitType SplitType { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
-    
+
     private readonly List<ExpenseShare> _shares = [];
 
     // Required by EF Core.
@@ -88,6 +88,7 @@ public sealed class Expense
         PaidByParticipantId = paidByParticipantId;
         SplitType = splitType;
         CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = CreatedAt.AddTicks(-(CreatedAt.Ticks % 10));
         _shares.AddRange(materializedShares);
     }
 }

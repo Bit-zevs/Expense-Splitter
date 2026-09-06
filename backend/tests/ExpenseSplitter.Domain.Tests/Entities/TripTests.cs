@@ -15,6 +15,7 @@ public sealed class TripTests
         Assert.NotEqual(Guid.Empty, trip.Id);
         Assert.Equal("Summer vacation", trip.Name);
         Assert.InRange(trip.CreatedAt, beforeCreation, DateTimeOffset.UtcNow);
+        Assert.Equal(0, trip.CreatedAt.Ticks % 10);
         Assert.Empty(trip.Participants);
         Assert.Empty(trip.Expenses);
     }
@@ -38,6 +39,17 @@ public sealed class TripTests
         Assert.NotEqual(Guid.Empty, participant.Id);
         Assert.Equal("Alice", participant.Name);
         Assert.Same(participant, Assert.Single(trip.Participants));
+    }
+
+    [Fact]
+    public void ExpenseCreationTimeUsesDatabasePrecision()
+    {
+        var trip = new Trip("Trip");
+        var participant = trip.AddParticipant("Alice");
+
+        var expense = trip.AddEqualExpenseForAll(12.34m, "Coffee", participant.Id);
+
+        Assert.Equal(0, expense.CreatedAt.Ticks % 10);
     }
 
     [Theory]

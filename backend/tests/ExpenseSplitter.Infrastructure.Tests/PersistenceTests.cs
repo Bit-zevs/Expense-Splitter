@@ -2,10 +2,12 @@ using ExpenseSplitter.Domain.Entities;
 using ExpenseSplitter.Domain.Services;
 using ExpenseSplitter.Domain.ValueObjects;
 using ExpenseSplitter.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using System.Data.Common;
 using Xunit;
 
 namespace ExpenseSplitter.Infrastructure.Tests;
@@ -118,6 +120,151 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
             second.Participants.Select(participant => participant.Id));
         Assert.Equal(expected, SettlementCalculator.Calculate(first));
         Assert.Equal(expected, SettlementCalculator.Calculate(second));
+    }
+
+    [Fact]
+    public async Task StoreLoadsOnlyStateRequiredByEachOperation()
+    {
+        var options = await database.CreateDatabaseAsync();
+        var (trip, _, _, _) = CreateTrip();
+        await using (var write = new ExpenseSplitterDbContext(options))
+        {
+            write.Trips.Add(trip);
+            await write.SaveChangesAsync();
+        }
+
+        await using (var context = new ExpenseSplitterDbContext(options))
+        {
+            var store = new TripStore(context);
+            var loaded = Assert.IsType<Trip>(
+                await store.FindForUpdateAsync(trip.Id, CancellationToken.None));
+
+            Assert.Empty(loaded.Participants);
+            Assert.Empty(loaded.Expenses);
+            Assert.Empty(context.ChangeTracker.Entries<Participant>());
+            Assert.Empty(context.ChangeTracker.Entries<Expense>());
+            loaded.AddParticipant("New participant");
+            await store.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using (var context = new ExpenseSplitterDbContext(options))
+        {
+            var store = new TripStore(context);
+            var loaded = Assert.IsType<Trip>(
+                await store.FindWithParticipantsForUpdateAsync(
+                    trip.Id,
+                    CancellationToken.None));
+
+            Assert.Equal(3, loaded.Participants.Count);
+            Assert.Empty(loaded.Expenses);
+            Assert.Empty(context.ChangeTracker.Entries<Expense>());
+            var participants = loaded.Participants.ToArray();
+            loaded.AddEqualExpense(
+                5m,
+                "New expense",
+                participants[0].Id,
+                new[] { participants[1].Id });
+            await store.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await using (var context = new ExpenseSplitterDbContext(options))
+        {
+            var loaded = Assert.IsType<Trip>(
+                await new TripStore(context).FindWithExpensesByIdAsync(
+                    trip.Id,
+                    CancellationToken.None));
+
+            Assert.Empty(loaded.Participants);
+            Assert.Equal(2, loaded.Expenses.Count);
+            Assert.Empty(context.ChangeTracker.Entries());
+        }
+    }
+
+    [Fact]
+    public async Task StoreScopesItemReadsToTripAndLoadsExpenseShares()
+    {
+        var options = await database.CreateDatabaseAsync();
+        var (trip, participant, _, expense) = CreateTrip();
+        var otherTrip = new Trip("Other trip");
+        var otherParticipant = otherTrip.AddParticipant("Other participant");
+        otherTrip.AddEqualExpenseForAll(1m, "Other expense", otherParticipant.Id);
+        await using (var write = new ExpenseSplitterDbContext(options))
+        {
+            write.Trips.AddRange(trip, otherTrip);
+            await write.SaveChangesAsync();
+        }
+
+        await using var context = new ExpenseSplitterDbContext(options);
+        var store = new TripStore(context);
+
+        var loadedParticipant = Assert.IsType<Participant>(
+            await store.FindParticipantByIdAsync(
+                trip.Id,
+                participant.Id,
+                CancellationToken.None));
+        var loadedExpense = Assert.IsType<Expense>(
+            await store.FindExpenseByIdAsync(trip.Id, expense.Id, CancellationToken.None));
+
+        Assert.Equal(participant.Name, loadedParticipant.Name);
+        Assert.Single(loadedExpense.Shares);
+        Assert.Null(await store.FindParticipantByIdAsync(
+            otherTrip.Id,
+            participant.Id,
+            CancellationToken.None));
+        Assert.Null(await store.FindExpenseByIdAsync(
+            otherTrip.Id,
+            expense.Id,
+            CancellationToken.None));
+        Assert.Empty(context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task AggregateSplitQueryUsesOneSnapshotDuringConcurrentWrite()
+    {
+        var options = await database.CreateDatabaseAsync();
+        var trip = new Trip("Concurrent trip");
+        trip.AddParticipant("Existing participant");
+        await using (var seed = new ExpenseSplitterDbContext(options))
+        {
+            seed.Trips.Add(trip);
+            await seed.SaveChangesAsync();
+        }
+
+        using var interceptor = new PauseAfterParticipantsInterceptor();
+        var readOptions = new DbContextOptionsBuilder<ExpenseSplitterDbContext>(options)
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var read = new ExpenseSplitterDbContext(readOptions);
+        var loadTask = new TripStore(read).FindWithParticipantsAndExpensesByIdAsync(
+            trip.Id,
+            CancellationToken.None);
+
+        await interceptor.ParticipantsLoaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        try
+        {
+            await using var write = new ExpenseSplitterDbContext(options);
+            var aggregate = await write.Trips
+                .Include(candidate => candidate.Participants)
+                .SingleAsync(candidate => candidate.Id == trip.Id);
+            var newParticipant = aggregate.AddParticipant("Concurrent participant");
+            aggregate.AddEqualExpense(
+                10m,
+                "Concurrent expense",
+                newParticipant.Id,
+                new[] { newParticipant.Id });
+            await write.SaveChangesAsync();
+        }
+        finally
+        {
+            interceptor.Resume();
+        }
+
+        var loaded = Assert.IsType<Trip>(await loadTask);
+        Assert.Single(loaded.Participants);
+        Assert.Empty(loaded.Expenses);
+        Assert.All(
+            ParticipantBalanceCalculator.Calculate(loaded),
+            balance => Assert.Equal(0, balance.AmountInCents));
     }
 
     [Theory]
@@ -398,8 +545,51 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
 
     private static void AssertTimestamp(DateTimeOffset expected, DateTimeOffset actual)
     {
-        // PostgreSQL timestamps have microsecond precision; .NET ticks are 100 ns.
+        Assert.Equal(expected, actual);
         Assert.Equal(TimeSpan.Zero, actual.Offset);
-        Assert.InRange(expected.Ticks - actual.Ticks, 0L, 9L);
+    }
+
+    private sealed class PauseAfterParticipantsInterceptor : DbCommandInterceptor, IDisposable
+    {
+        private readonly ManualResetEventSlim _resume = new(false);
+        private int _expensesLoaded;
+        private int _hasPaused;
+
+        public TaskCompletionSource ParticipantsLoaded { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override InterceptionResult DataReaderDisposing(
+            DbCommand command,
+            DataReaderDisposingEventData eventData,
+            InterceptionResult result)
+        {
+            if (command.CommandText.Contains("\"Expenses\"", StringComparison.Ordinal))
+            {
+                Interlocked.Exchange(ref _expensesLoaded, 1);
+            }
+
+            if (command.CommandText.Contains("\"Participants\"", StringComparison.Ordinal)
+                && Interlocked.Exchange(ref _hasPaused, 1) == 0)
+            {
+                if (Volatile.Read(ref _expensesLoaded) != 0)
+                {
+                    ParticipantsLoaded.TrySetException(new InvalidOperationException(
+                        "The expenses query ran before the test synchronization point."));
+                    return result;
+                }
+
+                ParticipantsLoaded.TrySetResult();
+                if (!_resume.Wait(TimeSpan.FromSeconds(30)))
+                {
+                    throw new TimeoutException("Timed out waiting for the concurrent write.");
+                }
+            }
+
+            return result;
+        }
+
+        public void Resume() => _resume.Set();
+
+        public void Dispose() => _resume.Dispose();
     }
 }

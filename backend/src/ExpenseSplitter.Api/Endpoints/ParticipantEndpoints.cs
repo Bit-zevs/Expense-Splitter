@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Participants;
 using ExpenseSplitter.Application.Participants.AddParticipant;
+using ExpenseSplitter.Application.Participants.GetParticipant;
 using ExpenseSplitter.Application.Participants.GetParticipants;
 
 namespace ExpenseSplitter.Api.Endpoints;
@@ -21,6 +22,14 @@ public static class ParticipantEndpoints
             .Produces<IReadOnlyCollection<ParticipantResult>>()
             .Produces(StatusCodes.Status404NotFound);
 
+        endpoints.MapGet(
+                "/trips/{tripId:guid}/participants/{participantId:guid}",
+                GetParticipantAsync)
+            .WithName("GetParticipant")
+            .WithSummary("Gets a trip participant by ID")
+            .Produces<ParticipantResult>()
+            .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 
@@ -36,7 +45,10 @@ public static class ParticipantEndpoints
 
             return result is null
                 ? Results.NotFound()
-                : Results.Created($"/trips/{tripId}/participants/{result.Id}", result);
+                : Results.CreatedAtRoute(
+                    "GetParticipant",
+                    new { tripId, participantId = result.Id },
+                    result);
         }
         catch (ArgumentException)
         {
@@ -53,6 +65,22 @@ public static class ParticipantEndpoints
         CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(tripId, cancellationToken);
+
+        return result is null
+            ? Results.NotFound()
+            : Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetParticipantAsync(
+        Guid tripId,
+        Guid participantId,
+        GetParticipantHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.HandleAsync(
+            tripId,
+            participantId,
+            cancellationToken);
 
         return result is null
             ? Results.NotFound()

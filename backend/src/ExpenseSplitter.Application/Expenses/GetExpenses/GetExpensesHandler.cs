@@ -8,7 +8,7 @@ public sealed class GetExpensesHandler(ITripStore tripStore)
         Guid tripId,
         CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindAggregateByIdAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindWithExpensesByIdAsync(tripId, cancellationToken);
 
         return trip?.Expenses
             .OrderBy(expense => expense.CreatedAt)

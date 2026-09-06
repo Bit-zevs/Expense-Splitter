@@ -1,4 +1,3 @@
-using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Application.Trips.GetTrip;
 using ExpenseSplitter.Domain.Entities;
 using Xunit;
@@ -36,32 +35,18 @@ public sealed class GetTripHandlerTests
         Assert.Null(result);
     }
 
-    private sealed class StubTripStore(Trip? trip) : ITripStore
+    private sealed class StubTripStore(Trip? trip) : TripStoreStub
     {
         public Guid RequestedId { get; private set; }
 
         public CancellationToken CancellationToken { get; private set; }
 
-        public Task AddAsync(Trip tripToAdd, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
+        public override Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
         {
             RequestedId = id;
             CancellationToken = cancellationToken;
             return Task.FromResult(trip);
         }
 
-        public Task<Trip?> FindAggregateByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken) => Task.FromResult<Trip?>(null);
-
-        public Task<Trip?> FindAggregateForUpdateAsync(
-            Guid id,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<Trip?>(null);
-
-        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
-            Task.CompletedTask;
     }
 }

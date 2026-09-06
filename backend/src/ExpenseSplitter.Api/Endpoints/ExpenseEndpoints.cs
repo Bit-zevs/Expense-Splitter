@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Expenses;
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
+using ExpenseSplitter.Application.Expenses.GetExpense;
 using ExpenseSplitter.Application.Expenses.GetExpenses;
 
 namespace ExpenseSplitter.Api.Endpoints;
@@ -19,6 +20,14 @@ public static class ExpenseEndpoints
             .WithName("GetExpenses")
             .WithSummary("Gets a trip's expenses")
             .Produces<IReadOnlyCollection<ExpenseResult>>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        endpoints.MapGet(
+                "/trips/{tripId:guid}/expenses/{expenseId:guid}",
+                GetExpenseAsync)
+            .WithName("GetExpense")
+            .WithSummary("Gets a trip expense by ID")
+            .Produces<ExpenseResult>()
             .Produces(StatusCodes.Status404NotFound);
 
         return endpoints;
@@ -41,7 +50,10 @@ public static class ExpenseEndpoints
 
             return result is null
                 ? Results.NotFound()
-                : Results.Created($"/trips/{tripId}/expenses/{result.Id}", result);
+                : Results.CreatedAtRoute(
+                    "GetExpense",
+                    new { tripId, expenseId = result.Id },
+                    result);
         }
         catch (ArgumentException exception)
         {
@@ -58,6 +70,19 @@ public static class ExpenseEndpoints
         CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(tripId, cancellationToken);
+
+        return result is null
+            ? Results.NotFound()
+            : Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetExpenseAsync(
+        Guid tripId,
+        Guid expenseId,
+        GetExpenseHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.HandleAsync(tripId, expenseId, cancellationToken);
 
         return result is null
             ? Results.NotFound()

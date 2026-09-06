@@ -1,0 +1,81 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{7214211F-5857-44B6-A92D-6906F799CA4E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Api", "backend\src\ExpenseSplitter.Api\ExpenseSplitter.Api.csproj", "{5A62F848-218A-4714-9F7C-A8EE416BFB61}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Application", "backend\src\ExpenseSplitter.Application\ExpenseSplitter.Application.csproj", "{2CAED1B7-469B-4AF4-B1B8-7537141AEBDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Domain", "backend\src\ExpenseSplitter.Domain\ExpenseSplitter.Domain.csproj", "{7C5AC4E4-7939-4787-91F8-D6DD2012D43A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Infrastructure", "backend\src\ExpenseSplitter.Infrastructure\ExpenseSplitter.Infrastructure.csproj", "{B6289C72-83D8-4738-A4C6-E65A64DFB845}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Domain.Tests", "backend\tests\ExpenseSplitter.Domain.Tests\ExpenseSplitter.Domain.Tests.csproj", "{573CD527-44EE-4209-A499-897D3BED4EBA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Infrastructure.Tests", "backend\tests\ExpenseSplitter.Infrastructure.Tests\ExpenseSplitter.Infrastructure.Tests.csproj", "{1B95A7A7-4142-4ED9-BC76-3B06C1E8C84E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Application.Tests", "backend\tests\ExpenseSplitter.Application.Tests\ExpenseSplitter.Application.Tests.csproj", "{B49DA916-E65E-4E9A-9E6E-EB9D0978B490}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpenseSplitter.Api.Tests", "backend\tests\ExpenseSplitter.Api.Tests\ExpenseSplitter.Api.Tests.csproj", "{D9E6608F-5F18-4CEE-AF8F-56DD01D97F6A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5A62F848-218A-4714-9F7C-A8EE416BFB61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A62F848-218A-4714-9F7C-A8EE416BFB61}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A62F848-218A-4714-9F7C-A8EE416BFB61}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A62F848-218A-4714-9F7C-A8EE416BFB61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2CAED1B7-469B-4AF4-B1B8-7537141AEBDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2CAED1B7-469B-4AF4-B1B8-7537141AEBDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2CAED1B7-469B-4AF4-B1B8-7537141AEBDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2CAED1B7-469B-4AF4-B1B8-7537141AEBDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C5AC4E4-7939-4787-91F8-D6DD2012D43A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C5AC4E4-7939-4787-91F8-D6DD2012D43A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C5AC4E4-7939-4787-91F8-D6DD2012D43A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C5AC4E4-7939-4787-91F8-D6DD2012D43A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6289C72-83D8-4738-A4C6-E65A64DFB845}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6289C72-83D8-4738-A4C6-E65A64DFB845}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6289C72-83D8-4738-A4C6-E65A64DFB845}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6289C72-83D8-4738-A4C6-E65A64DFB845}.Release|Any CPU.Build.0 = Release|Any CPU
+		{573CD527-44EE-4209-A499-897D3BED4EBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{573CD527-44EE-4209-A499-897D3BED4EBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{573CD527-44EE-4209-A499-897D3BED4EBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{573CD527-44EE-4209-A499-897D3BED4EBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1B95A7A7-4142-4ED9-BC76-3B06C1E8C84E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B95A7A7-4142-4ED9-BC76-3B06C1E8C84E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B95A7A7-4142-4ED9-BC76-3B06C1E8C84E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B95A7A7-4142-4ED9-BC76-3B06C1E8C84E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B49DA916-E65E-4E9A-9E6E-EB9D0978B490}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B49DA916-E65E-4E9A-9E6E-EB9D0978B490}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B49DA916-E65E-4E9A-9E6E-EB9D0978B490}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B49DA916-E65E-4E9A-9E6E-EB9D0978B490}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9E6608F-5F18-4CEE-AF8F-56DD01D97F6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9E6608F-5F18-4CEE-AF8F-56DD01D97F6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9E6608F-5F18-4CEE-AF8F-56DD01D97F6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9E6608F-5F18-4CEE-AF8F-56DD01D97F6A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{827E0CD3-B72D-47B6-A68D-7590B98EB39B} = {7214211F-5857-44B6-A92D-6906F799CA4E}
+		{0AB3BF05-4346-4AA6-1389-037BE0695223} = {7214211F-5857-44B6-A92D-6906F799CA4E}
+		{5A62F848-218A-4714-9F7C-A8EE416BFB61} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{2CAED1B7-469B-4AF4-B1B8-7537141AEBDF} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{7C5AC4E4-7939-4787-91F8-D6DD2012D43A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{B6289C72-83D8-4738-A4C6-E65A64DFB845} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{573CD527-44EE-4209-A499-897D3BED4EBA} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{1B95A7A7-4142-4ED9-BC76-3B06C1E8C84E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{B49DA916-E65E-4E9A-9E6E-EB9D0978B490} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{D9E6608F-5F18-4CEE-AF8F-56DD01D97F6A} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+	EndGlobalSection
+EndGlobal
