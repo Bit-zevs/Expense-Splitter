@@ -1,4 +1,5 @@
 using ExpenseSplitter.Application.Trips.CreateTrip;
+using ExpenseSplitter.Application.Trips.GetTrip;
 
 namespace ExpenseSplitter.Api.Endpoints;
 
@@ -11,6 +12,12 @@ public static class TripEndpoints
             .WithSummary("Creates a trip")
             .Produces<CreateTripResult>(StatusCodes.Status201Created)
             .ProducesValidationProblem();
+
+        endpoints.MapGet("/trips/{id:guid}", GetTripAsync)
+            .WithName("GetTrip")
+            .WithSummary("Gets a trip by ID")
+            .Produces<GetTripResult>()
+            .Produces(StatusCodes.Status404NotFound);
 
         return endpoints;
     }
@@ -35,6 +42,18 @@ public static class TripEndpoints
                 ["name"] = ["Trip name is required."]
             });
         }
+    }
+
+    private static async Task<IResult> GetTripAsync(
+        Guid id,
+        GetTripHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.HandleAsync(id, cancellationToken);
+
+        return result is null
+            ? Results.NotFound()
+            : Results.Ok(result);
     }
 
     public sealed record CreateTripRequest(string? Name);
