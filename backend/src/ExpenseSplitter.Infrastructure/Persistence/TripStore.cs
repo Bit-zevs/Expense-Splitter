@@ -24,6 +24,13 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
             .Include(trip => trip.Participants)
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
+    public Task<Trip?> FindWithExpensesByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken) => dbContext.Trips
+            .AsNoTracking()
+            .Include(trip => trip.Expenses)
+            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+
     public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Trips
             .Include(trip => trip.Participants)

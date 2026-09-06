@@ -1,60 +1,88 @@
-using ExpenseSplitter.Application.Participants.AddParticipant;
+using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Entities;
 using Xunit;
 
-namespace ExpenseSplitter.Application.Tests.Participants;
+namespace ExpenseSplitter.Application.Tests.Expenses;
 
-public sealed class AddParticipantHandlerTests
+public sealed class CreateEqualExpenseHandlerTests
 {
     [Fact]
-    public async Task AddsParticipantAndSavesTrip()
+    public async Task CreatesEqualExpenseForAllParticipantsAndSavesTrip()
     {
         var trip = new Trip("Summer vacation");
+        var payer = trip.AddParticipant("Alice");
+        trip.AddParticipant("Bob");
+        trip.AddParticipant("Charlie");
         var store = new StubTripStore(trip);
-        var handler = new AddParticipantHandler(store);
+        var handler = new CreateEqualExpenseHandler(store);
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
             trip.Id,
-            "  Alice  ",
+            new CreateEqualExpenseCommand(100m, "  Dinner  ", payer.Id, null),
             cancellation.Token);
 
         Assert.NotNull(result);
-        Assert.Equal("Alice", result.Name);
-        Assert.Equal(result.Id, Assert.Single(trip.Participants).Id);
+        Assert.Equal("Dinner", result.Description);
+        Assert.Equal("equal", result.SplitType);
+        Assert.Equal(3, result.Shares.Count);
+        Assert.Equal(result.Amount, result.Shares.Sum(share => share.Amount));
+        Assert.Equal(result.Id, Assert.Single(trip.Expenses).Id);
         Assert.Equal(trip.Id, store.RequestedId);
         Assert.Equal(1, store.SaveCount);
         Assert.All(store.CancellationTokens, token => Assert.Equal(cancellation.Token, token));
     }
 
     [Fact]
+    public async Task CreatesEqualExpenseForSelectedParticipants()
+    {
+        var trip = new Trip("Summer vacation");
+        var payer = trip.AddParticipant("Alice");
+        var selected = trip.AddParticipant("Bob");
+        var store = new StubTripStore(trip);
+        var handler = new CreateEqualExpenseHandler(store);
+
+        var result = await handler.HandleAsync(
+            trip.Id,
+            new CreateEqualExpenseCommand(12.34m, "Coffee", payer.Id, [selected.Id]),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        var share = Assert.Single(result.Shares);
+        Assert.Equal(selected.Id, share.ParticipantId);
+        Assert.Equal(12.34m, share.Amount);
+    }
+
+    [Fact]
     public async Task ReturnsNullWithoutSavingWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new AddParticipantHandler(store);
+        var handler = new CreateEqualExpenseHandler(store);
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),
-            "Alice",
+            new CreateEqualExpenseCommand(10m, "Dinner", Guid.NewGuid(), null),
             CancellationToken.None);
 
         Assert.Null(result);
         Assert.Equal(0, store.SaveCount);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task RejectsMissingNameWithoutSaving(string? name)
+    [Fact]
+    public async Task RejectsEmptySelectionWithoutSaving()
     {
-        var store = new StubTripStore(new Trip("Summer vacation"));
-        var handler = new AddParticipantHandler(store);
+        var trip = new Trip("Summer vacation");
+        var payer = trip.AddParticipant("Alice");
+        var store = new StubTripStore(trip);
+        var handler = new CreateEqualExpenseHandler(store);
 
-        await Assert.ThrowsAnyAsync<ArgumentException>(() =>
-            handler.HandleAsync(Guid.NewGuid(), name, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(
+            trip.Id,
+            new CreateEqualExpenseCommand(10m, "Dinner", payer.Id, []),
+            CancellationToken.None));
 
+        Assert.Empty(trip.Expenses);
         Assert.Equal(0, store.SaveCount);
     }
 
