@@ -4,6 +4,7 @@ using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
 using ExpenseSplitter.Application.Expenses.GetExpenses;
 using ExpenseSplitter.Application.Participants.AddParticipant;
 using ExpenseSplitter.Application.Participants.GetParticipants;
+using ExpenseSplitter.Application.Settlements.GetSettlements;
 using ExpenseSplitter.Application.Trips.CreateTrip;
 using ExpenseSplitter.Application.Trips.GetTrip;
 
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<CreateEqualExpenseHandler>();
         services.AddScoped<GetExpensesHandler>();
         services.AddScoped<GetBalancesHandler>();
+        services.AddScoped<GetSettlementsHandler>();
 
         return services;
     }
