@@ -20,6 +20,7 @@ app.MapTripEndpoints();
 app.MapParticipantEndpoints();
 app.MapExpenseEndpoints();
 app.MapBalanceEndpoints();
+app.MapSettlementEndpoints();
 
 app.Run();
 
