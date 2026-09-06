@@ -1,0 +1,52 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: backend/Directory.Packages.props
+
+      - name: Restore dependencies
+        run: dotnet restore ExpenseSplitter.Backend.sln
+
+      - name: Build
+        run: dotnet build ExpenseSplitter.Backend.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test ExpenseSplitter.Backend.sln --configuration Release --no-build --verbosity normal
