@@ -25,7 +25,7 @@ internal static class ParticipantBalanceCalculator
         var balances = new List<ParticipantBalance>();
         var participantIds = new HashSet<Guid>();
 
-        foreach (var participant in trip.Participants)
+        foreach (var participant in trip.Participants.OrderBy(participant => participant.Id))
         {
             if (participant.Id == Guid.Empty || !participantIds.Add(participant.Id))
             {

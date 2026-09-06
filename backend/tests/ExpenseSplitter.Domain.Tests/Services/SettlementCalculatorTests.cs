@@ -27,7 +27,7 @@ public sealed class SettlementCalculatorTests
             {
                 new ExpectedTransfer(oleg.Id, ivan.Id, 10m),
                 new ExpectedTransfer(masha.Id, ivan.Id, 30m)
-            },
+            }.OrderBy(transfer => transfer.FromParticipantId),
             transfers.Select(transfer => new ExpectedTransfer(
                 transfer.FromParticipantId,
                 transfer.ToParticipantId,
@@ -38,10 +38,14 @@ public sealed class SettlementCalculatorTests
     public void MatchesSeveralDebtorsAndCreditorsUntilAllBalancesAreCleared()
     {
         var trip = new Trip("Trip");
-        var alice = trip.AddParticipant("Alice");
-        var bob = trip.AddParticipant("Bob");
-        var charlie = trip.AddParticipant("Charlie");
-        var diana = trip.AddParticipant("Diana");
+        var participants = Enumerable.Range(1, 4)
+            .Select(index => trip.AddParticipant($"Participant {index}"))
+            .OrderBy(participant => participant.Id)
+            .ToArray();
+        var alice = participants[0];
+        var bob = participants[1];
+        var charlie = participants[2];
+        var diana = participants[3];
         trip.AddEqualExpense(60m, "Alice paid", alice.Id, new[] { alice.Id, bob.Id });
         trip.AddEqualExpense(40m, "Charlie paid", charlie.Id, new[] { charlie.Id, diana.Id });
 
@@ -76,7 +80,7 @@ public sealed class SettlementCalculatorTests
             {
                 new ExpectedTransfer(bob.Id, alice.Id, 20m),
                 new ExpectedTransfer(bob.Id, charlie.Id, 30m)
-            },
+            }.OrderBy(transfer => transfer.ToParticipantId),
             transfers.Select(transfer => new ExpectedTransfer(
                 transfer.FromParticipantId,
                 transfer.ToParticipantId,
