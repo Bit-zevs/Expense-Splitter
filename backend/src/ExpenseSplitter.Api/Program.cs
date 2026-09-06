@@ -1,4 +1,5 @@
 using ExpenseSplitter.Application;
+using ExpenseSplitter.Api.Endpoints;
 using ExpenseSplitter.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapTripEndpoints();
 
 app.Run();
 
