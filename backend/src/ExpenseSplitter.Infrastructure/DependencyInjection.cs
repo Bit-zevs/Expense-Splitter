@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Infrastructure.Persistence;
 
 namespace ExpenseSplitter.Infrastructure;
@@ -20,6 +21,7 @@ public static class DependencyInjection
 
         services.AddDbContext<ExpenseSplitterDbContext>(options =>
             options.UseNpgsql(connectionString));
+        services.AddScoped<ITripStore, TripStore>();
 
         return services;
     }
