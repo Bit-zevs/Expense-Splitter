@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using ExpenseSplitter.Application.Participants.AddParticipant;
+using ExpenseSplitter.Application.Participants.GetParticipants;
 using ExpenseSplitter.Application.Trips.CreateTrip;
 using ExpenseSplitter.Application.Trips.GetTrip;
 
@@ -10,6 +12,8 @@ public static class DependencyInjection
     {
         services.AddScoped<CreateTripHandler>();
         services.AddScoped<GetTripHandler>();
+        services.AddScoped<AddParticipantHandler>();
+        services.AddScoped<GetParticipantsHandler>();
 
         return services;
     }

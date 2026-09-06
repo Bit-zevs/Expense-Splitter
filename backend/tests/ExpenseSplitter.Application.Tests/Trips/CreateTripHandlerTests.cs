@@ -55,5 +55,15 @@ public sealed class CreateTripHandlerTests
 
         public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<Trip?>(null);
+
+        public Task<Trip?> FindWithParticipantsByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken) => Task.FromResult<Trip?>(null);
+
+        public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<Trip?>(null);
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }
