@@ -9,6 +9,8 @@ public sealed class AddParticipantHandler(ITripStore tripStore)
         string? name,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));
+
         var trip = await tripStore.FindForUpdateAsync(tripId, cancellationToken);
         if (trip is null)
         {

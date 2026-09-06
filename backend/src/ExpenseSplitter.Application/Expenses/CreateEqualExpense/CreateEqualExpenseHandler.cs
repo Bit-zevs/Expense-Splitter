@@ -16,6 +16,7 @@ public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        ValidateCommand(command);
 
         var trip = await tripStore.FindWithParticipantsForUpdateAsync(tripId, cancellationToken);
         if (trip is null)
@@ -37,5 +38,44 @@ public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
         await tripStore.SaveChangesAsync(cancellationToken);
 
         return ExpenseResult.FromExpense(expense);
+    }
+
+    private static void ValidateCommand(CreateEqualExpenseCommand command)
+    {
+        if (command.Amount <= 0
+            || command.Amount > decimal.MaxValue / 100m
+            || command.Amount % 0.01m != 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                "amount",
+                "Amount must be positive, fit in decimal cents, and have at most two decimal places.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.Description, "description");
+
+        if (command.PaidByParticipantId == Guid.Empty)
+        {
+            throw new ArgumentException("Payer ID cannot be empty.", "paidByParticipantId");
+        }
+
+        if (command.ParticipantIds is null)
+        {
+            return;
+        }
+
+        if (command.ParticipantIds.Count == 0)
+        {
+            throw new ArgumentException("Select at least one participant.", "participantIds");
+        }
+
+        if (command.ParticipantIds.Any(id => id == Guid.Empty))
+        {
+            throw new ArgumentException("Participant IDs cannot be empty.", "participantIds");
+        }
+
+        if (command.ParticipantIds.Distinct().Count() != command.ParticipantIds.Count)
+        {
+            throw new ArgumentException("Selected participants must be unique.", "participantIds");
+        }
     }
 }

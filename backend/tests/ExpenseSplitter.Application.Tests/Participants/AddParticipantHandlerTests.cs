@@ -54,6 +54,7 @@ public sealed class AddParticipantHandlerTests
         await Assert.ThrowsAnyAsync<ArgumentException>(() =>
             handler.HandleAsync(Guid.NewGuid(), name, CancellationToken.None));
 
+        Assert.Equal(0, store.LoadCount);
         Assert.Equal(0, store.SaveCount);
     }
 
@@ -63,12 +64,15 @@ public sealed class AddParticipantHandlerTests
 
         public int SaveCount { get; private set; }
 
+        public int LoadCount { get; private set; }
+
         public List<CancellationToken> CancellationTokens { get; } = [];
 
         public override Task<Trip?> FindForUpdateAsync(
             Guid id,
             CancellationToken cancellationToken)
         {
+            LoadCount++;
             RequestedId = id;
             CancellationTokens.Add(cancellationToken);
             return Task.FromResult(trip);

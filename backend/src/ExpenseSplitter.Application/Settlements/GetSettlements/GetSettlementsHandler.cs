@@ -46,6 +46,9 @@ public sealed class GetSettlementsHandler(ITripStore tripStore)
         return new GetSettlementsResult(balances, transfers);
     }
 
-    private static decimal ToDecimalAmount(BigInteger amountInCents) =>
-        (decimal)amountInCents / 100m;
+    private static decimal ToDecimalAmount(BigInteger amountInCents)
+    {
+        var wholeUnits = BigInteger.DivRem(amountInCents, 100, out var cents);
+        return checked((decimal)wholeUnits + (decimal)cents / 100m);
+    }
 }

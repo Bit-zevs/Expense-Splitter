@@ -73,6 +73,26 @@ public sealed class GetSettlementsHandlerTests
             handler.HandleAsync(trip.Id, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ReturnsBalanceWhenCentsExceedDecimalButScaledAmountFits()
+    {
+        const decimal maximumExpense = 792281625142643375935439503.35m;
+        var trip = new Trip("Large trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        trip.AddEqualExpense(maximumExpense, "First expense", payer.Id, [debtor.Id]);
+        trip.AddEqualExpense(maximumExpense, "Second expense", payer.Id, [debtor.Id]);
+        var handler = new GetSettlementsHandler(new StubTripStore(trip));
+
+        var result = await handler.HandleAsync(trip.Id, CancellationToken.None);
+
+        Assert.NotNull(result);
+        var expectedBalance = checked(maximumExpense + maximumExpense);
+        AssertBalance(result.Balances, payer.Id, expectedBalance);
+        AssertBalance(result.Balances, debtor.Id, -expectedBalance);
+        AssertTransfer(result.Transfers, debtor.Id, payer.Id, expectedBalance);
+    }
+
     private static void AssertBalance(
         IEnumerable<SettlementBalanceResult> balances,
         Guid participantId,
@@ -111,6 +131,5 @@ public sealed class GetSettlementsHandlerTests
             CancellationToken = cancellationToken;
             return Task.FromResult(trip);
         }
-
     }
 }
