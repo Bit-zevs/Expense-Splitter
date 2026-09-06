@@ -62,7 +62,7 @@ public sealed class GetParticipantsHandlerTests
         public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Trip?> FindWithParticipantsByIdAsync(
+        public Task<Trip?> FindAggregateByIdAsync(
             Guid id,
             CancellationToken cancellationToken)
         {
@@ -71,11 +71,9 @@ public sealed class GetParticipantsHandlerTests
             return Task.FromResult(trip);
         }
 
-        public Task<Trip?> FindWithExpensesByIdAsync(
+        public Task<Trip?> FindAggregateForUpdateAsync(
             Guid id,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) =>
