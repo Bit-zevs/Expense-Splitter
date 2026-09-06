@@ -3,7 +3,7 @@ using System.Numerics;
 
 namespace ExpenseSplitter.Domain.Services;
 
-internal static class ParticipantBalanceCalculator
+public static class ParticipantBalanceCalculator
 {
     public static IReadOnlyCollection<ParticipantBalance> Calculate(Trip trip)
     {
@@ -73,9 +73,14 @@ internal static class ParticipantBalanceCalculator
     private static BigInteger ToCents(decimal amount) => new(amount * 100m);
 }
 
-internal sealed class ParticipantBalance(Guid participantId)
+public sealed class ParticipantBalance
 {
-    public Guid ParticipantId { get; } = participantId;
+    internal ParticipantBalance(Guid participantId)
+    {
+        ParticipantId = participantId;
+    }
 
-    public BigInteger AmountInCents { get; set; }
+    public Guid ParticipantId { get; }
+
+    public BigInteger AmountInCents { get; internal set; }
 }

@@ -52,15 +52,13 @@ public sealed class GetTripHandlerTests
             return Task.FromResult(trip);
         }
 
-        public Task<Trip?> FindWithParticipantsByIdAsync(
+        public Task<Trip?> FindAggregateByIdAsync(
             Guid id,
             CancellationToken cancellationToken) => Task.FromResult<Trip?>(null);
 
-        public Task<Trip?> FindWithExpensesByIdAsync(
+        public Task<Trip?> FindAggregateForUpdateAsync(
             Guid id,
-            CancellationToken cancellationToken) => Task.FromResult<Trip?>(null);
-
-        public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken) =>
             Task.FromResult<Trip?>(null);
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) =>

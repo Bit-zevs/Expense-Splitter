@@ -9,7 +9,7 @@ public sealed class AddParticipantHandler(ITripStore tripStore)
         string? name,
         CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindForUpdateAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindAggregateForUpdateAsync(tripId, cancellationToken);
         if (trip is null)
         {
             return null;

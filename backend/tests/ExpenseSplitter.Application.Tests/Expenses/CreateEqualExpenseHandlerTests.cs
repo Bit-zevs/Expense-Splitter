@@ -100,15 +100,13 @@ public sealed class CreateEqualExpenseHandlerTests
         public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Trip?> FindWithParticipantsByIdAsync(
+        public Task<Trip?> FindAggregateByIdAsync(
             Guid id,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<Trip?> FindWithExpensesByIdAsync(
+        public Task<Trip?> FindAggregateForUpdateAsync(
             Guid id,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken)
+            CancellationToken cancellationToken)
         {
             RequestedId = id;
             CancellationTokens.Add(cancellationToken);

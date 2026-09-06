@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using ExpenseSplitter.Application.Balances.GetBalances;
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
 using ExpenseSplitter.Application.Expenses.GetExpenses;
 using ExpenseSplitter.Application.Participants.AddParticipant;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<GetParticipantsHandler>();
         services.AddScoped<CreateEqualExpenseHandler>();
         services.AddScoped<GetExpensesHandler>();
+        services.AddScoped<GetBalancesHandler>();
 
         return services;
     }

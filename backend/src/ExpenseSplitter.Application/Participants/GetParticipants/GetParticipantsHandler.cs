@@ -8,7 +8,7 @@ public sealed class GetParticipantsHandler(ITripStore tripStore)
         Guid tripId,
         CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindWithParticipantsByIdAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindAggregateByIdAsync(tripId, cancellationToken);
 
         return trip?.Participants
             .Select(participant => new ParticipantResult(participant.Id, participant.Name))
