@@ -18,6 +18,7 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapTripEndpoints();
 app.MapParticipantEndpoints();
+app.MapExpenseEndpoints();
 
 app.Run();
 

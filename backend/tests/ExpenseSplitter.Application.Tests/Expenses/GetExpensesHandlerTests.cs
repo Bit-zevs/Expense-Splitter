@@ -1,37 +1,45 @@
-using ExpenseSplitter.Application.Participants.GetParticipants;
+using ExpenseSplitter.Application.Expenses;
+using ExpenseSplitter.Application.Expenses.GetExpenses;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Entities;
 using Xunit;
 
-namespace ExpenseSplitter.Application.Tests.Participants;
+namespace ExpenseSplitter.Application.Tests.Expenses;
 
-public sealed class GetParticipantsHandlerTests
+public sealed class GetExpensesHandlerTests
 {
     [Fact]
-    public async Task ReturnsTripParticipants()
+    public async Task ReturnsTripExpensesWithShares()
     {
         var trip = new Trip("Summer vacation");
-        var alice = trip.AddParticipant("Alice");
-        var bob = trip.AddParticipant("Bob");
+        var payer = trip.AddParticipant("Alice");
+        var participant = trip.AddParticipant("Bob");
+        var expense = trip.AddEqualExpense(12.34m, "Coffee", payer.Id, [participant.Id]);
         var store = new StubTripStore(trip);
-        var handler = new GetParticipantsHandler(store);
+        var handler = new GetExpensesHandler(store);
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
 
-        Assert.NotNull(result);
-        Assert.Equal(
-            new[] { (alice.Id, alice.Name), (bob.Id, bob.Name) },
-            result.Select(participant => (participant.Id, participant.Name)));
+        var actual = Assert.Single(Assert.IsAssignableFrom<IReadOnlyCollection<ExpenseResult>>(result));
+        Assert.Equal(expense.Id, actual.Id);
+        Assert.Equal(expense.Amount, actual.Amount);
+        Assert.Equal(expense.Description, actual.Description);
+        Assert.Equal(expense.PaidByParticipantId, actual.PaidByParticipantId);
+        Assert.Equal("equal", actual.SplitType);
+        Assert.Equal(expense.CreatedAt, actual.CreatedAt);
+        var share = Assert.Single(actual.Shares);
+        Assert.Equal(participant.Id, share.ParticipantId);
+        Assert.Equal(expense.Amount, share.Amount);
         Assert.Equal(trip.Id, store.RequestedId);
         Assert.Equal(cancellation.Token, store.CancellationToken);
     }
 
     [Fact]
-    public async Task ReturnsEmptyCollectionWhenTripHasNoParticipants()
+    public async Task ReturnsEmptyCollectionWhenTripHasNoExpenses()
     {
         var store = new StubTripStore(new Trip("Summer vacation"));
-        var handler = new GetParticipantsHandler(store);
+        var handler = new GetExpensesHandler(store);
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -43,7 +51,7 @@ public sealed class GetParticipantsHandlerTests
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new GetParticipantsHandler(store);
+        var handler = new GetExpensesHandler(store);
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -64,16 +72,16 @@ public sealed class GetParticipantsHandlerTests
 
         public Task<Trip?> FindWithParticipantsByIdAsync(
             Guid id,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<Trip?> FindWithExpensesByIdAsync(
+            Guid id,
             CancellationToken cancellationToken)
         {
             RequestedId = id;
             CancellationToken = cancellationToken;
             return Task.FromResult(trip);
         }
-
-        public Task<Trip?> FindWithExpensesByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
