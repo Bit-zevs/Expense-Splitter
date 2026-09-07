@@ -3,6 +3,7 @@ using System;
 using ExpenseSplitter.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ExpenseSplitter.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ExpenseSplitterDbContext))]
-    partial class ExpenseSplitterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260907123139_AddTripCurrency")]
+    partial class AddTripCurrency
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

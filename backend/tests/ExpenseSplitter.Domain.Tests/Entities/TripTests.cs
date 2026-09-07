@@ -14,10 +14,33 @@ public sealed class TripTests
 
         Assert.NotEqual(Guid.Empty, trip.Id);
         Assert.Equal("Summer vacation", trip.Name);
+        Assert.Equal("RUB", trip.Currency);
         Assert.InRange(trip.CreatedAt, beforeCreation, DateTimeOffset.UtcNow);
         Assert.Equal(0, trip.CreatedAt.Ticks % 10);
         Assert.Empty(trip.Participants);
         Assert.Empty(trip.Expenses);
+    }
+
+    [Theory]
+    [InlineData("RUB")]
+    [InlineData("EUR")]
+    [InlineData("USD")]
+    [InlineData(" eur ")]
+    public void ConstructorAcceptsSupportedCurrency(string currency)
+    {
+        var trip = new Trip("Trip", currency);
+
+        Assert.Equal(currency.Trim().ToUpperInvariant(), trip.Currency);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("GBP")]
+    public void ConstructorRejectsUnsupportedCurrency(string currency)
+    {
+        var error = Assert.Throws<ArgumentException>(() => new Trip("Trip", currency));
+
+        Assert.Equal("currency", error.ParamName);
     }
 
     [Theory]

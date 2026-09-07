@@ -28,12 +28,15 @@ public sealed class EndpointTests
         await using var factory = new ExpenseSplitterApiFactory();
         using var client = factory.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/trips", new { name = "Summer trip" });
+        using var response = await client.PostAsJsonAsync(
+            "/trips",
+            new { name = "Summer trip", currency = "EUR" });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
         using var created = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         Assert.Equal("Summer trip", created.RootElement.GetProperty("name").GetString());
+        Assert.Equal("EUR", created.RootElement.GetProperty("currency").GetString());
         Assert.True(created.RootElement.TryGetProperty("createdAt", out _));
         Assert.False(created.RootElement.TryGetProperty("CreatedAt", out _));
 
@@ -44,6 +47,22 @@ public sealed class EndpointTests
         Assert.Equal(
             created.RootElement.GetProperty("createdAt").GetDateTimeOffset(),
             fetched.GetProperty("createdAt").GetDateTimeOffset());
+        Assert.Equal("EUR", fetched.GetProperty("currency").GetString());
+    }
+
+    [Fact]
+    public async Task UnsupportedCurrencyReturnsValidationProblem()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/trips",
+            new { name = "Summer trip", currency = "GBP" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(problem.GetProperty("errors").TryGetProperty("currency", out _));
     }
 
     [Fact]

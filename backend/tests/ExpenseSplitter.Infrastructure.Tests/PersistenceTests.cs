@@ -20,7 +20,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
     public async Task RoundTripsAggregateWithMaximumAmountZeroSharesAndDuplicateUnicodeNames()
     {
         var options = await database.CreateDatabaseAsync();
-        var trip = new Trip(new string('Я', 400));
+        var trip = new Trip(new string('Я', 400), "USD");
         var payer = trip.AddParticipant(new string('А', 400));
         var debtor = trip.AddParticipant(payer.Name);
         trip.AddParticipant("Третий участник");
@@ -37,6 +37,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         var loaded = await LoadTripAsync(read, trip.Id);
         Assert.NotSame(trip, loaded);
         Assert.Equal(trip.Name, loaded.Name);
+        Assert.Equal("USD", loaded.Currency);
         AssertTimestamp(trip.CreatedAt, loaded.CreatedAt);
         Assert.Equal(
             trip.Participants.OrderBy(participant => participant.Id).Select(participant => (participant.Id, participant.Name)),

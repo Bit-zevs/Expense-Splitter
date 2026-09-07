@@ -2,9 +2,13 @@ using ExpenseSplitter.Domain.Entities;
 
 namespace ExpenseSplitter.Application.Trips.CreateTrip;
 
-public sealed record CreateTripCommand(string? Name);
+public sealed record CreateTripCommand(string? Name, string? Currency = null);
 
-public sealed record CreateTripResult(Guid Id, string Name, DateTimeOffset CreatedAt);
+public sealed record CreateTripResult(
+    Guid Id,
+    string Name,
+    string Currency,
+    DateTimeOffset CreatedAt);
 
 public sealed class CreateTripHandler(ITripStore tripStore)
 {
@@ -14,9 +18,11 @@ public sealed class CreateTripHandler(ITripStore tripStore)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var trip = new Trip(command.Name!);
+        var trip = new Trip(
+            command.Name!,
+            command.Currency ?? Trip.DefaultCurrency);
         await tripStore.AddAsync(trip, cancellationToken);
 
-        return new CreateTripResult(trip.Id, trip.Name, trip.CreatedAt);
+        return new CreateTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt);
     }
 }
