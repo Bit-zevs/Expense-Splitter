@@ -1,6 +1,5 @@
 using ExpenseSplitter.Domain.Enums;
 using ExpenseSplitter.Domain.ValueObjects;
-using System.Numerics;
 
 namespace ExpenseSplitter.Domain.Entities;
 
@@ -38,11 +37,12 @@ public sealed class Expense
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
         ArgumentNullException.ThrowIfNull(shares);
 
-        if (amount <= 0 || amount > decimal.MaxValue / 100m || amount % 0.01m != 0)
+        if (!MoneyLimits.IsValidPositiveAmount(amount))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(amount),
-                "Amount must be positive, fit in decimal cents, and have at most two decimal places.");
+                $"Amount must be positive, no greater than {MoneyLimits.MaximumAmount}, "
+                + "and have at most two decimal places.");
         }
 
         if (paidByParticipantId == Guid.Empty)
@@ -72,12 +72,11 @@ public sealed class Expense
             throw new ArgumentException("Expense shares must have unique participants.", nameof(shares));
         }
 
-        var shareTotalInCents = materializedShares.Aggregate(
-            BigInteger.Zero,
-            (total, share) => total + new BigInteger(share.Amount * 100m));
-        var amountInCents = new BigInteger(amount * 100m);
+        var shareTotal = materializedShares.Aggregate(
+            0m,
+            (total, share) => MoneyLimits.AddExact(total, share.Amount));
 
-        if (shareTotalInCents != amountInCents)
+        if (shareTotal != amount)
         {
             throw new ArgumentException("The sum of expense shares must equal the expense amount.", nameof(shares));
         }

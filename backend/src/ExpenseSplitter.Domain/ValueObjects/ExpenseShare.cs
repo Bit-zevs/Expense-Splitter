@@ -12,11 +12,12 @@ public sealed class ExpenseShare
             throw new ArgumentException("Participant ID cannot be empty.", nameof(participantId));
         }
 
-        if (amount < 0 || amount > decimal.MaxValue / 100m || amount % 0.01m != 0)
+        if (!MoneyLimits.IsValidNonNegativeAmount(amount))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(amount),
-                "Share amount cannot be negative, must fit in decimal cents, and have at most two decimal places.");
+                $"Share amount must be between zero and {MoneyLimits.MaximumAmount} "
+                + "and have at most two decimal places.");
         }
 
         ParticipantId = participantId;

@@ -32,7 +32,7 @@ public static class SettlementEndpoints
         catch (OverflowException)
         {
             return Results.Problem(
-                title: "Balance exceeds the supported response range.",
+                title: "Balance exceeds the supported decimal range.",
                 statusCode: StatusCodes.Status422UnprocessableEntity);
         }
     }

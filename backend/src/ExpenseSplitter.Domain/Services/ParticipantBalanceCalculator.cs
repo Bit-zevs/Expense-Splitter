@@ -1,5 +1,5 @@
 using ExpenseSplitter.Domain.Entities;
-using System.Numerics;
+using ExpenseSplitter.Domain.ValueObjects;
 
 namespace ExpenseSplitter.Domain.Services;
 
@@ -43,14 +43,14 @@ public static class ParticipantBalanceCalculator
         Expense expense,
         IReadOnlyDictionary<Guid, ParticipantBalance> balances)
     {
-        var changes = new Dictionary<Guid, BigInteger>();
+        var changes = new Dictionary<Guid, decimal>();
 
         if (!balances.ContainsKey(expense.PaidByParticipantId))
         {
             throw new InvalidOperationException("An expense payer does not belong to the trip.");
         }
 
-        changes[expense.PaidByParticipantId] = ToCents(expense.Amount);
+        changes[expense.PaidByParticipantId] = expense.Amount;
 
         foreach (var share in expense.Shares)
         {
@@ -61,16 +61,15 @@ public static class ParticipantBalanceCalculator
             }
 
             changes.TryGetValue(share.ParticipantId, out var currentChange);
-            changes[share.ParticipantId] = currentChange - ToCents(share.Amount);
+            changes[share.ParticipantId] = MoneyLimits.AddExact(currentChange, -share.Amount);
         }
 
         foreach (var (participantId, change) in changes)
         {
-            balances[participantId].AmountInCents += change;
+            var balance = balances[participantId];
+            balance.Amount = MoneyLimits.AddExact(balance.Amount, change);
         }
     }
-
-    private static BigInteger ToCents(decimal amount) => new(amount * 100m);
 }
 
 public sealed class ParticipantBalance
@@ -82,5 +81,5 @@ public sealed class ParticipantBalance
 
     public Guid ParticipantId { get; }
 
-    public BigInteger AmountInCents { get; internal set; }
+    public decimal Amount { get; internal set; }
 }

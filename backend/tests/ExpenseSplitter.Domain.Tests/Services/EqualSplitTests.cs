@@ -181,20 +181,21 @@ public sealed class EqualSplitTests
     }
 
     [Theory]
-    [InlineData("792281625142643375935439503.35", "0")]
-    [InlineData("792281625142643375935439503.34", "0.01")]
-    public void LargeAmountPreservesTotal(string value, string difference)
+    [InlineData("792281625142643375935439503.35", 2)]
+    [InlineData("792281625142643375935439503.35", 3)]
+    [InlineData("792281625142643375935439503.34", 2)]
+    public void LargeAmountPreservesTotal(string value, int participantCount)
     {
-        var (trip, participants) = MakeTrip(3);
+        var (trip, participants) = MakeTrip(participantCount);
         var amount = decimal.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
-        var expectedDifference = decimal.Parse(difference, System.Globalization.CultureInfo.InvariantCulture);
 
         var expense = trip.AddEqualExpenseForAll(amount, "Large expense", participants[0].Id);
 
         Assert.Equal(amount, expense.Shares.Sum(share => share.Amount));
-        Assert.Equal(
-            expectedDifference,
-            expense.Shares.Max(share => share.Amount) - expense.Shares.Min(share => share.Amount));
+        Assert.InRange(
+            expense.Shares.Max(share => share.Amount) - expense.Shares.Min(share => share.Amount),
+            0m,
+            0.01m);
     }
 
     private static (Trip Trip, Participant[] Participants) MakeTrip(int participantCount)

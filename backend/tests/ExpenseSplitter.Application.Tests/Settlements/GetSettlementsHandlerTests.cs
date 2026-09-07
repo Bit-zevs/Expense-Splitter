@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Settlements.GetSettlements;
 using ExpenseSplitter.Domain.Entities;
+using ExpenseSplitter.Domain.ValueObjects;
 using Xunit;
 
 namespace ExpenseSplitter.Application.Tests.Settlements;
@@ -56,21 +57,35 @@ public sealed class GetSettlementsHandlerTests
     }
 
     [Fact]
-    public async Task RejectsBalanceOutsideDecimalResponseRange()
+    public async Task RejectsBalanceOutsideDecimalRange()
     {
-        const decimal maximumExpense = 792281625142643375935439503.35m;
         var trip = new Trip("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        for (var index = 0; index < 101; index++)
-        {
-            trip.AddEqualExpense(maximumExpense, $"Expense {index}", payer.Id, [debtor.Id]);
-        }
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, [debtor.Id]);
 
         var handler = new GetSettlementsHandler(new StubTripStore(trip));
 
         await Assert.ThrowsAsync<OverflowException>(() =>
             handler.HandleAsync(trip.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReturnsMaximumExactCentBalance()
+    {
+        var trip = new Trip("Large trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
+        var handler = new GetSettlementsHandler(new StubTripStore(trip));
+
+        var result = await handler.HandleAsync(trip.Id, CancellationToken.None);
+
+        Assert.NotNull(result);
+        AssertBalance(result.Balances, payer.Id, MoneyLimits.MaximumAmount);
+        AssertBalance(result.Balances, debtor.Id, -MoneyLimits.MaximumAmount);
+        AssertTransfer(result.Transfers, debtor.Id, payer.Id, MoneyLimits.MaximumAmount);
     }
 
     private static void AssertBalance(
@@ -111,6 +126,5 @@ public sealed class GetSettlementsHandlerTests
             CancellationToken = cancellationToken;
             return Task.FromResult(trip);
         }
-
     }
 }

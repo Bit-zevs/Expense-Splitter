@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
 using ExpenseSplitter.Domain.Entities;
+using ExpenseSplitter.Domain.ValueObjects;
 using Xunit;
 
 namespace ExpenseSplitter.Application.Tests.Expenses;
@@ -54,6 +55,30 @@ public sealed class CreateEqualExpenseHandlerTests
     }
 
     [Fact]
+    public async Task CreatesExpenseWithMaximumExactCentAmount()
+    {
+        var trip = new Trip("Maximum amount trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        var store = new StubTripStore(trip);
+        var handler = new CreateEqualExpenseHandler(store);
+
+        var result = await handler.HandleAsync(
+            trip.Id,
+            new CreateEqualExpenseCommand(
+                MoneyLimits.MaximumAmount,
+                "Maximum expense",
+                payer.Id,
+                [debtor.Id]),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(MoneyLimits.MaximumAmount, result.Amount);
+        Assert.Equal(MoneyLimits.MaximumAmount, Assert.Single(result.Shares).Amount);
+        Assert.Equal(1, store.SaveCount);
+    }
+
+    [Fact]
     public async Task ReturnsNullWithoutSavingWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
@@ -82,7 +107,43 @@ public sealed class CreateEqualExpenseHandlerTests
             CancellationToken.None));
 
         Assert.Empty(trip.Expenses);
+        Assert.Equal(0, store.LoadCount);
         Assert.Equal(0, store.SaveCount);
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidCommands))]
+    public async Task RejectsInvalidCommandWithoutLoadingTrip(
+        CreateEqualExpenseCommand command)
+    {
+        var store = new StubTripStore(new Trip("Summer vacation"));
+        var handler = new CreateEqualExpenseHandler(store);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => handler.HandleAsync(
+            Guid.NewGuid(),
+            command,
+            CancellationToken.None));
+
+        Assert.Equal(0, store.LoadCount);
+        Assert.Equal(0, store.SaveCount);
+    }
+
+    public static TheoryData<CreateEqualExpenseCommand> InvalidCommands
+    {
+        get
+        {
+            var participantId = Guid.NewGuid();
+            return
+            [
+                new(0m, "Dinner", participantId, [participantId]),
+                new(1.001m, "Dinner", participantId, [participantId]),
+                new(decimal.MaxValue, "Dinner", participantId, [participantId]),
+                new(10m, " ", participantId, [participantId]),
+                new(10m, "Dinner", Guid.Empty, [participantId]),
+                new(10m, "Dinner", participantId, [Guid.Empty]),
+                new(10m, "Dinner", participantId, [participantId, participantId])
+            ];
+        }
     }
 
     private sealed class StubTripStore(Trip? trip) : TripStoreStub
@@ -91,12 +152,15 @@ public sealed class CreateEqualExpenseHandlerTests
 
         public int SaveCount { get; private set; }
 
+        public int LoadCount { get; private set; }
+
         public List<CancellationToken> CancellationTokens { get; } = [];
 
         public override Task<Trip?> FindWithParticipantsForUpdateAsync(
             Guid id,
             CancellationToken cancellationToken)
         {
+            LoadCount++;
             RequestedId = id;
             CancellationTokens.Add(cancellationToken);
             return Task.FromResult(trip);

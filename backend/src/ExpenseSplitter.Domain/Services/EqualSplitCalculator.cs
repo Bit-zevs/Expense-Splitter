@@ -10,11 +10,12 @@ internal static class EqualSplitCalculator
     {
         ArgumentNullException.ThrowIfNull(participantIds);
 
-        if (amount <= 0 || amount > decimal.MaxValue / 100m || amount % 0.01m != 0)
+        if (!MoneyLimits.IsValidPositiveAmount(amount))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(amount),
-                "Amount must be positive, fit in decimal cents, and have at most two decimal places.");
+                $"Amount must be positive, no greater than {MoneyLimits.MaximumAmount}, "
+                + "and have at most two decimal places.");
         }
 
         if (participantIds.Count == 0)
@@ -33,11 +34,13 @@ internal static class EqualSplitCalculator
         }
 
         var orderedIds = participantIds.Order().ToArray();
-        var cents = amount * 100m;
-        var remainder = cents % orderedIds.Length;
-        var baseCents = (cents - remainder) / orderedIds.Length;
+        var participantCount = orderedIds.Length;
+        var totalCents = amount * 100m;
+        var remainder = totalCents % participantCount;
+        var baseCents = (totalCents - remainder) / participantCount;
+        var baseAmount = baseCents / 100m;
         var shares = orderedIds.Select((id, index) =>
-            new ExpenseShare(id, (baseCents + (index < remainder ? 1m : 0m)) / 100m)).ToArray();
+            new ExpenseShare(id, baseAmount + (index < remainder ? 0.01m : 0m))).ToArray();
 
         return Array.AsReadOnly(shares);
     }

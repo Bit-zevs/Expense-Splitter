@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Numerics;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Services;
 
@@ -8,7 +6,7 @@ namespace ExpenseSplitter.Application.Balances.GetBalances;
 public sealed record ParticipantBalanceResult(
     Guid ParticipantId,
     string Name,
-    string Amount);
+    decimal Amount);
 
 public sealed class GetBalancesHandler(ITripStore tripStore)
 {
@@ -63,21 +61,7 @@ public sealed class GetBalancesHandler(ITripStore tripStore)
             .Select(balance => new ParticipantBalanceResult(
                 balance.ParticipantId,
                 namesById[balance.ParticipantId],
-                FormatAmount(balance.AmountInCents)))
+                balance.Amount))
             .ToArray();
-    }
-
-    private static string FormatAmount(BigInteger amountInCents)
-    {
-        var absoluteAmount = BigInteger.Abs(amountInCents);
-        var wholeUnits = absoluteAmount / 100;
-        var cents = absoluteAmount % 100;
-        var sign = amountInCents.Sign < 0 ? "-" : string.Empty;
-
-        return string.Concat(
-            sign,
-            wholeUnits.ToString(CultureInfo.InvariantCulture),
-            ".",
-            cents.ToString("00", CultureInfo.InvariantCulture));
     }
 }

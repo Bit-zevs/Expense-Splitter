@@ -14,7 +14,7 @@ namespace ExpenseSplitter.Infrastructure.Tests;
 
 public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture<PostgreSqlFixture>
 {
-    private const decimal MaximumExpense = 792281625142643375935439503.35m;
+    private const decimal MaximumAmount = MoneyLimits.MaximumAmount;
 
     [Fact]
     public async Task RoundTripsAggregateWithMaximumAmountZeroSharesAndDuplicateUnicodeNames()
@@ -24,7 +24,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         var payer = trip.AddParticipant(new string('А', 400));
         var debtor = trip.AddParticipant(payer.Name);
         trip.AddParticipant("Третий участник");
-        trip.AddEqualExpense(MaximumExpense, new string('Б', 4000), payer.Id, new[] { debtor.Id });
+        trip.AddEqualExpense(MaximumAmount, new string('Б', 4000), payer.Id, new[] { debtor.Id });
         trip.AddEqualExpenseForAll(0.01m, "Копейка", payer.Id);
 
         await using (var write = new ExpenseSplitterDbContext(options))
@@ -264,7 +264,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         Assert.Empty(loaded.Expenses);
         Assert.All(
             ParticipantBalanceCalculator.Calculate(loaded),
-            balance => Assert.Equal(0, balance.AmountInCents));
+            balance => Assert.Equal(0, balance.Amount));
     }
 
     [Theory]
@@ -462,7 +462,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         await using var context = new ExpenseSplitterDbContext(options);
         context.Trips.Add(trip);
         await context.SaveChangesAsync();
-        // Cast text in PostgreSQL to cover values exceeding .NET's exact cents coefficient.
+        // Cast text in PostgreSQL to bypass Domain validation.
         FormattableString command = updateShare
             ? (FormattableString)$"UPDATE \"ExpenseParticipants\" SET \"Amount\" = CAST({value} AS numeric)"
             : $"UPDATE \"Expenses\" SET \"Amount\" = CAST({value} AS numeric)";
@@ -509,7 +509,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
     }
 
     [Fact]
-    public async Task InitialMigrationCanBeRolledBackAndReapplied()
+    public async Task MigrationsCanBeRolledBackAndReapplied()
     {
         var options = await database.CreateDatabaseAsync();
         await using var context = new ExpenseSplitterDbContext(options);
