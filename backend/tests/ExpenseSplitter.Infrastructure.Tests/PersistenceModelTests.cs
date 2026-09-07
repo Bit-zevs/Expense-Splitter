@@ -69,7 +69,9 @@ public sealed class PersistenceModelTests
     public void MigrationsMatchCurrentModel()
     {
         using var context = CreateContext();
-        Assert.NotEmpty(context.Database.GetMigrations());
+        Assert.Equal(
+            ["20260905185942_InitialPersistence"],
+            context.Database.GetMigrations());
         Assert.False(context.Database.HasPendingModelChanges());
     }
 

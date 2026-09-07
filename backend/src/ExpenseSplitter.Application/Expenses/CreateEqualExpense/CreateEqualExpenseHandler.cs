@@ -1,4 +1,5 @@
 using ExpenseSplitter.Application.Trips;
+using ExpenseSplitter.Domain.ValueObjects;
 
 namespace ExpenseSplitter.Application.Expenses.CreateEqualExpense;
 
@@ -42,13 +43,12 @@ public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
 
     private static void ValidateCommand(CreateEqualExpenseCommand command)
     {
-        if (command.Amount <= 0
-            || command.Amount > decimal.MaxValue / 100m
-            || command.Amount % 0.01m != 0)
+        if (!MoneyLimits.IsValidPositiveAmount(command.Amount))
         {
             throw new ArgumentOutOfRangeException(
                 "amount",
-                "Amount must be positive, fit in decimal cents, and have at most two decimal places.");
+                $"Amount must be positive, no greater than {MoneyLimits.MaximumAmount}, "
+                + "and have at most two decimal places.");
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(command.Description, "description");

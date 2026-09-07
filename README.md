@@ -38,6 +38,9 @@ dotnet ef database update --project backend/src/ExpenseSplitter.Infrastructure -
 The Development connection string is stored in .NET User Secrets, outside the repository.
 For other environments, configure `ConnectionStrings__ExpenseSplitter` externally.
 Migrations are applied explicitly, not automatically when the API starts.
+Money is represented as `decimal` end to end; persisted amounts use `numeric(29,2)`.
+The upper bound `792281625142643375935439503.35` guarantees exact cent arithmetic
+and reliable PostgreSQL round-trips.
 See [persistence design and usage](docs/persistence.md) for relationships, delete rules,
 money precision, aggregate loading, and migration details.
 

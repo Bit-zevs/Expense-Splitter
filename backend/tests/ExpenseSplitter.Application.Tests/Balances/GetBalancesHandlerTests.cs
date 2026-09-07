@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Balances.GetBalances;
 using ExpenseSplitter.Domain.Entities;
+using ExpenseSplitter.Domain.ValueObjects;
 using Xunit;
 
 namespace ExpenseSplitter.Application.Tests.Balances;
@@ -18,9 +19,9 @@ public sealed class GetBalancesHandlerTests
 
         Assert.NotNull(result);
         Assert.Equal(3, result.Count);
-        AssertBalance(result, alice.Id, "Alice", "40.00");
-        AssertBalance(result, bob.Id, "Bob", "-10.00");
-        AssertBalance(result, charlie.Id, "Charlie", "-30.00");
+        AssertBalance(result, alice.Id, "Alice", 40m);
+        AssertBalance(result, bob.Id, "Bob", -10m);
+        AssertBalance(result, charlie.Id, "Charlie", -30m);
         Assert.Equal(trip.Id, store.RequestedId);
         Assert.Equal(cancellation.Token, store.CancellationToken);
     }
@@ -38,8 +39,8 @@ public sealed class GetBalancesHandlerTests
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Count);
-        AssertBalance(result, alice.Id, "Alice", "40.00");
-        AssertBalance(result, bob.Id, "Bob", "-10.00");
+        AssertBalance(result, alice.Id, "Alice", 40m);
+        AssertBalance(result, bob.Id, "Bob", -10m);
     }
 
     [Fact]
@@ -55,24 +56,18 @@ public sealed class GetBalancesHandlerTests
     }
 
     [Fact]
-    public async Task FormatsBalanceLargerThanDecimalWithoutLosingCents()
+    public async Task RejectsAccumulatedBalanceOutsideDecimalRange()
     {
-        const decimal maximumExpense = 792281625142643375935439503.35m;
         var trip = new Trip("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        for (var index = 0; index < 101; index++)
-        {
-            trip.AddEqualExpense(maximumExpense, $"Expense {index}", payer.Id, [debtor.Id]);
-        }
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, [debtor.Id]);
 
         var handler = new GetBalancesHandler(new StubTripStore(trip));
 
-        var result = await handler.HandleAsync(trip.Id, null, CancellationToken.None);
-
-        Assert.NotNull(result);
-        AssertBalance(result, payer.Id, "Payer", "80020444139406980969479389838.35");
-        AssertBalance(result, debtor.Id, "Debtor", "-80020444139406980969479389838.35");
+        await Assert.ThrowsAsync<OverflowException>(() =>
+            handler.HandleAsync(trip.Id, null, CancellationToken.None));
     }
 
     [Fact]
@@ -128,7 +123,7 @@ public sealed class GetBalancesHandlerTests
         IEnumerable<ParticipantBalanceResult> balances,
         Guid participantId,
         string name,
-        string amount)
+        decimal amount)
     {
         var balance = Assert.Single(
             balances,

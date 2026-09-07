@@ -1,15 +1,12 @@
 using ExpenseSplitter.Domain.Entities;
 using ExpenseSplitter.Domain.Services;
 using ExpenseSplitter.Domain.ValueObjects;
-using System.Numerics;
 using Xunit;
 
 namespace ExpenseSplitter.Domain.Tests.Services;
 
 public sealed class SettlementCalculatorTests
 {
-    private const decimal MaximumExpense = 792281625142643375935439503.35m;
-
     [Fact]
     public void CalculatesExpectedTransfersForOneCreditorAndTwoDebtors()
     {
@@ -103,57 +100,30 @@ public sealed class SettlementCalculatorTests
     }
 
     [Fact]
-    public void AccumulatesSeveralMaximumExpensesIntoOneLargerTransfer()
+    public void SupportsMaximumExactCentBalance()
     {
         var trip = new Trip("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        trip.AddEqualExpense(MaximumExpense, "First expense", payer.Id, new[] { debtor.Id });
-        trip.AddEqualExpense(MaximumExpense, "Second expense", payer.Id, new[] { debtor.Id });
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, new[] { debtor.Id });
 
         var transfer = Assert.Single(SettlementCalculator.Calculate(trip));
 
-        Assert.Equal(checked(MaximumExpense + MaximumExpense), transfer.Amount);
+        Assert.Equal(MoneyLimits.MaximumAmount, transfer.Amount);
         Assert.Equal(debtor.Id, transfer.FromParticipantId);
         Assert.Equal(payer.Id, transfer.ToParticipantId);
     }
 
     [Fact]
-    public void SplitsAccumulatedBalanceLargerThanDecimalWithoutLosingCents()
+    public void RejectsAccumulatedBalanceOutsideExactCentRange()
     {
         var trip = new Trip("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First expense", payer.Id, new[] { debtor.Id });
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second expense", payer.Id, new[] { debtor.Id });
 
-        for (var index = 0; index < 100; index++)
-        {
-            trip.AddEqualExpense(
-                MaximumExpense,
-                $"Expense {index}",
-                payer.Id,
-                new[] { debtor.Id });
-        }
-
-        trip.AddEqualExpense(
-                MaximumExpense,
-                "Expense 100",
-                payer.Id,
-                new[] { debtor.Id });
-
-        var transfers = SettlementCalculator.Calculate(trip);
-
-        Assert.Equal(101, trip.Expenses.Count);
-        Assert.Equal(2, transfers.Count);
-        Assert.All(transfers, transfer =>
-        {
-            Assert.Equal(debtor.Id, transfer.FromParticipantId);
-            Assert.Equal(payer.Id, transfer.ToParticipantId);
-        });
-        Assert.Equal(
-            ToCents(MaximumExpense) * 101,
-            transfers.Aggregate(
-                BigInteger.Zero,
-                (total, transfer) => total + ToCents(transfer.Amount)));
+        Assert.Throws<OverflowException>(() => SettlementCalculator.Calculate(trip));
     }
 
     [Fact]
@@ -163,28 +133,31 @@ public sealed class SettlementCalculatorTests
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
 
-        for (var index = 0; index < 100; index++)
-        {
-            trip.AddEqualExpense(
-                MaximumExpense,
-                $"Expense {index}",
-                payer.Id,
-                new[] { debtor.Id });
-        }
-
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, new[] { debtor.Id });
         trip.AddEqualExpense(
-            MaximumExpense,
+            MoneyLimits.MaximumAmount,
             "Personal expense",
             payer.Id,
             new[] { payer.Id });
 
-        Assert.Equal(101, trip.Expenses.Count);
-        var transfers = SettlementCalculator.Calculate(trip);
-        Assert.Equal(
-            ToCents(MaximumExpense) * 100,
-            transfers.Aggregate(
-                BigInteger.Zero,
-                (total, transfer) => total + ToCents(transfer.Amount)));
+        var transfer = Assert.Single(SettlementCalculator.Calculate(trip));
+        Assert.Equal(MoneyLimits.MaximumAmount, transfer.Amount);
+    }
+
+    [Fact]
+    public void PreservesCentWhenMaximumExpenseHasSmallCounterExpense()
+    {
+        var trip = new Trip("Trip");
+        var alice = trip.AddParticipant("Alice");
+        var bob = trip.AddParticipant("Bob");
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Large expense", alice.Id, [bob.Id]);
+        trip.AddEqualExpense(0.01m, "Counter expense", bob.Id, [alice.Id]);
+
+        var transfer = Assert.Single(SettlementCalculator.Calculate(trip));
+
+        Assert.Equal(MoneyLimits.MaximumAmount - 0.01m, transfer.Amount);
+        Assert.Equal(bob.Id, transfer.FromParticipantId);
+        Assert.Equal(alice.Id, transfer.ToParticipantId);
     }
 
     [Fact]
@@ -239,12 +212,12 @@ public sealed class SettlementCalculatorTests
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(10m, "Expense", payer.Id, new[] { debtor.Id });
         var balances = ParticipantBalanceCalculator.Calculate(trip);
-        var expectedAmounts = balances.Select(balance => balance.AmountInCents).ToArray();
+        var expectedAmounts = balances.Select(balance => balance.Amount).ToArray();
 
         var transfers = SettlementCalculator.CalculateFromBalances(balances);
 
         Assert.Single(transfers);
-        Assert.Equal(expectedAmounts, balances.Select(balance => balance.AmountInCents));
+        Assert.Equal(expectedAmounts, balances.Select(balance => balance.Amount));
     }
 
     [Fact]
@@ -258,20 +231,4 @@ public sealed class SettlementCalculatorTests
         Guid ToParticipantId,
         decimal Amount);
 
-    private static BigInteger ToCents(decimal amount)
-    {
-        var bits = decimal.GetBits(amount);
-        var coefficient = (BigInteger)(uint)bits[0]
-            | (BigInteger)(uint)bits[1] << 32
-            | (BigInteger)(uint)bits[2] << 64;
-        var scale = (bits[3] >> 16) & 0x7F;
-        var cents = scale switch
-        {
-            0 => coefficient * 100,
-            1 => coefficient * 10,
-            2 => coefficient,
-            _ => coefficient / BigInteger.Pow(10, scale - 2)
-        };
-        return (bits[3] & int.MinValue) == 0 ? cents : -cents;
-    }
 }

@@ -1,4 +1,3 @@
-using System.Numerics;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Services;
 
@@ -33,7 +32,7 @@ public sealed class GetSettlementsHandler(ITripStore tripStore)
         var balances = calculatedBalances
             .Select(balance => new SettlementBalanceResult(
                 balance.ParticipantId,
-                ToDecimalAmount(balance.AmountInCents)))
+                balance.Amount))
             .ToArray();
 
         var transfers = SettlementCalculator.CalculateFromBalances(calculatedBalances)
@@ -44,11 +43,5 @@ public sealed class GetSettlementsHandler(ITripStore tripStore)
             .ToArray();
 
         return new GetSettlementsResult(balances, transfers);
-    }
-
-    private static decimal ToDecimalAmount(BigInteger amountInCents)
-    {
-        var wholeUnits = BigInteger.DivRem(amountInCents, 100, out var cents);
-        return checked((decimal)wholeUnits + (decimal)cents / 100m);
     }
 }

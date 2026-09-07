@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
 using ExpenseSplitter.Domain.Entities;
+using ExpenseSplitter.Domain.ValueObjects;
 using Xunit;
 
 namespace ExpenseSplitter.Application.Tests.Expenses;
@@ -51,6 +52,30 @@ public sealed class CreateEqualExpenseHandlerTests
         var share = Assert.Single(result.Shares);
         Assert.Equal(selected.Id, share.ParticipantId);
         Assert.Equal(12.34m, share.Amount);
+    }
+
+    [Fact]
+    public async Task CreatesExpenseWithMaximumExactCentAmount()
+    {
+        var trip = new Trip("Maximum amount trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        var store = new StubTripStore(trip);
+        var handler = new CreateEqualExpenseHandler(store);
+
+        var result = await handler.HandleAsync(
+            trip.Id,
+            new CreateEqualExpenseCommand(
+                MoneyLimits.MaximumAmount,
+                "Maximum expense",
+                payer.Id,
+                [debtor.Id]),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(MoneyLimits.MaximumAmount, result.Amount);
+        Assert.Equal(MoneyLimits.MaximumAmount, Assert.Single(result.Shares).Amount);
+        Assert.Equal(1, store.SaveCount);
     }
 
     [Fact]

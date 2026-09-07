@@ -12,6 +12,7 @@ public static class BalanceEndpoints
             .WithSummary("Gets all or selected participant balances for a trip")
             .Produces<IReadOnlyCollection<ParticipantBalanceResult>>()
             .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .Produces(StatusCodes.Status404NotFound);
 
         return endpoints;
@@ -40,6 +41,12 @@ public static class BalanceEndpoints
             {
                 [exception.ParamName ?? "participantIds"] = [exception.Message]
             });
+        }
+        catch (OverflowException)
+        {
+            return Results.Problem(
+                title: "Balance exceeds the supported decimal range.",
+                statusCode: StatusCodes.Status422UnprocessableEntity);
         }
     }
 }

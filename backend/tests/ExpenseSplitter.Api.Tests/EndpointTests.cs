@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using ExpenseSplitter.Domain.Entities;
+using ExpenseSplitter.Domain.ValueObjects;
 using Xunit;
 
 namespace ExpenseSplitter.Api.Tests;
@@ -155,11 +156,24 @@ public sealed class EndpointTests
                 paidByParticipantId = participant.Id,
                 participantIds = new[] { participant.Id }
             });
+        using var excessiveExpenseResponse = await client.PostAsJsonAsync(
+            $"/trips/{trip.Id}/expenses",
+            new
+            {
+                amount = decimal.MaxValue,
+                description = "Dinner",
+                paidByParticipantId = participant.Id,
+                participantIds = new[] { participant.Id }
+            });
 
         Assert.Equal(HttpStatusCode.BadRequest, participantResponse.StatusCode);
         Assert.Equal("application/problem+json", participantResponse.Content.Headers.ContentType?.MediaType);
         Assert.Equal(HttpStatusCode.BadRequest, expenseResponse.StatusCode);
         Assert.Equal("application/problem+json", expenseResponse.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.BadRequest, excessiveExpenseResponse.StatusCode);
+        Assert.Equal(
+            "application/problem+json",
+            excessiveExpenseResponse.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -188,7 +202,7 @@ public sealed class EndpointTests
         Assert.Single(expenses.EnumerateArray());
         var balance = Assert.Single(balances.EnumerateArray());
         Assert.Equal(debtor.Id, balance.GetProperty("participantId").GetGuid());
-        Assert.Equal("-12.34", balance.GetProperty("amount").GetString());
+        Assert.Equal(-12.34m, balance.GetProperty("amount").GetDecimal());
         Assert.Equal(2, settlements.GetProperty("balances").GetArrayLength());
         Assert.Single(settlements.GetProperty("transfers").EnumerateArray());
     }
@@ -240,23 +254,23 @@ public sealed class EndpointTests
     }
 
     [Fact]
-    public async Task SettlementOutsideResponseRangeReturnsUnprocessableEntity()
+    public async Task CalculationOutsideDecimalRangeReturnsUnprocessableEntity()
     {
-        const decimal maximumExpense = 792281625142643375935439503.35m;
         await using var factory = new ExpenseSplitterApiFactory();
         var trip = new Trip("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        for (var index = 0; index < 101; index++)
-        {
-            trip.AddEqualExpense(maximumExpense, $"Expense {index}", payer.Id, new[] { debtor.Id });
-        }
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, new[] { debtor.Id });
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, new[] { debtor.Id });
 
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
 
+        using var balanceResponse = await client.GetAsync($"/trips/{trip.Id}/balances");
         using var response = await client.GetAsync($"/trips/{trip.Id}/settlements");
 
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, balanceResponse.StatusCode);
+        Assert.Equal("application/problem+json", balanceResponse.Content.Headers.ContentType?.MediaType);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }

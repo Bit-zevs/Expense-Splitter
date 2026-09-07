@@ -1,13 +1,10 @@
 using ExpenseSplitter.Domain.Entities;
 using ExpenseSplitter.Domain.ValueObjects;
-using System.Numerics;
 
 namespace ExpenseSplitter.Domain.Services;
 
 public static class SettlementCalculator
 {
-    private static readonly BigInteger MaximumDecimalCoefficient = new(decimal.MaxValue);
-
     public static IReadOnlyCollection<SettlementTransfer> Calculate(Trip trip)
     {
         ArgumentNullException.ThrowIfNull(trip);
@@ -21,11 +18,11 @@ public static class SettlementCalculator
         ArgumentNullException.ThrowIfNull(balances);
 
         var creditors = balances
-            .Where(balance => balance.AmountInCents > 0)
+            .Where(balance => balance.Amount > 0)
             .Select(BalancePosition.FromBalance)
             .ToArray();
         var debtors = balances
-            .Where(balance => balance.AmountInCents < 0)
+            .Where(balance => balance.Amount < 0)
             .Select(BalancePosition.FromBalance)
             .ToArray();
         var transfers = new List<SettlementTransfer>();
@@ -36,32 +33,28 @@ public static class SettlementCalculator
         {
             var creditor = creditors[creditorIndex];
             var debtor = debtors[debtorIndex];
-            var transferAmountInCents = BigInteger.Min(
-                -debtor.AmountInCents,
-                creditor.AmountInCents);
-
-            AddTransfers(
-                transfers,
+            var transferAmount = Math.Min(-debtor.Amount, creditor.Amount);
+            transfers.Add(new SettlementTransfer(
                 debtor.ParticipantId,
                 creditor.ParticipantId,
-                transferAmountInCents);
+                transferAmount));
 
-            debtor.AmountInCents += transferAmountInCents;
-            creditor.AmountInCents -= transferAmountInCents;
+            debtor.Amount += transferAmount;
+            creditor.Amount -= transferAmount;
 
-            if (debtor.AmountInCents == 0)
+            if (debtor.Amount == 0)
             {
                 debtorIndex++;
             }
 
-            if (creditor.AmountInCents == 0)
+            if (creditor.Amount == 0)
             {
                 creditorIndex++;
             }
         }
 
-        if (creditors.Any(creditor => creditor.AmountInCents != 0)
-            || debtors.Any(debtor => debtor.AmountInCents != 0))
+        if (creditors.Any(creditor => creditor.Amount != 0)
+            || debtors.Any(debtor => debtor.Amount != 0))
         {
             throw new InvalidOperationException("Settlement did not clear all participant balances.");
         }
@@ -69,77 +62,13 @@ public static class SettlementCalculator
         return transfers.AsReadOnly();
     }
 
-    private sealed class BalancePosition(Guid participantId, BigInteger amountInCents)
+    private sealed class BalancePosition(Guid participantId, decimal amount)
     {
         public Guid ParticipantId { get; } = participantId;
 
-        public BigInteger AmountInCents { get; set; } = amountInCents;
+        public decimal Amount { get; set; } = amount;
 
         public static BalancePosition FromBalance(ParticipantBalance balance) =>
-            new(balance.ParticipantId, balance.AmountInCents);
-    }
-
-    private static void AddTransfers(
-        ICollection<SettlementTransfer> transfers,
-        Guid fromParticipantId,
-        Guid toParticipantId,
-        BigInteger amountInCents)
-    {
-        while (amountInCents > 0)
-        {
-            if (TryConvertExactly(amountInCents, out var amount))
-            {
-                transfers.Add(new SettlementTransfer(
-                    fromParticipantId,
-                    toParticipantId,
-                    amount));
-                return;
-            }
-
-            var wholeUnits = BigInteger.Min(
-                amountInCents / 100,
-                MaximumDecimalCoefficient);
-            var chunkInCents = wholeUnits * 100;
-
-            transfers.Add(new SettlementTransfer(
-                fromParticipantId,
-                toParticipantId,
-                CreateDecimal(wholeUnits, 0)));
-            amountInCents -= chunkInCents;
-        }
-    }
-
-    private static bool TryConvertExactly(BigInteger amountInCents, out decimal amount)
-    {
-        if (amountInCents <= MaximumDecimalCoefficient)
-        {
-            amount = CreateDecimal(amountInCents, 2);
-            return true;
-        }
-
-        if (amountInCents % 10 == 0
-            && amountInCents / 10 <= MaximumDecimalCoefficient)
-        {
-            amount = CreateDecimal(amountInCents / 10, 1);
-            return true;
-        }
-
-        if (amountInCents % 100 == 0
-            && amountInCents / 100 <= MaximumDecimalCoefficient)
-        {
-            amount = CreateDecimal(amountInCents / 100, 0);
-            return true;
-        }
-
-        amount = default;
-        return false;
-    }
-
-    private static decimal CreateDecimal(BigInteger coefficient, byte scale)
-    {
-        var low = (int)(uint)(coefficient & uint.MaxValue);
-        var middle = (int)(uint)((coefficient >> 32) & uint.MaxValue);
-        var high = (int)(uint)((coefficient >> 64) & uint.MaxValue);
-        return new decimal(low, middle, high, false, scale);
+            new(balance.ParticipantId, balance.Amount);
     }
 }
