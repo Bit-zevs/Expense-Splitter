@@ -667,55 +667,79 @@ function bind() {
 
   document.getElementById('open-trip-form')?.addEventListener('submit', async event => {
     event.preventDefault();
-    const tripId = parseTripId(document.getElementById('trip-id').value);
+    const form = event.currentTarget;
+    const input = document.getElementById('trip-id');
+    const tripId = parseTripId(input.value);
     if (!tripId) {
-      showInlineError(document.getElementById('trip-id'), 'Введите корректный UUID или ссылку с UUID поездки.');
+      showInlineError(input, 'Введите корректный UUID или ссылку с UUID поездки.');
       return;
     }
 
+    setFormPending(form, true);
     try {
       await loadTrip(tripId);
       location.hash = `#/trip/${tripId}`;
     } catch (error) {
       showInlineError(
-        document.getElementById('trip-id'),
-        error.status === 404 ? 'Поездка с таким ID не найдена.' : error.message,
+        input,
+        error.status === 404 ? 'Поездка с таким ID не найдена.' : getErrorMessage(error),
       );
+    } finally {
+      setFormPending(form, false);
     }
   });
 
   document.getElementById('create-trip-form')?.addEventListener('submit', async event => {
     event.preventDefault();
+    const form = event.currentTarget;
     const name = document.getElementById('trip-name').value.trim();
     const currency = document.getElementById('trip-currency').value;
     if (!name) return;
 
+    setFormPending(form, true);
     try {
       const trip = await api.createTrip(name, currency);
-      await loadTrip(trip.id, 'participants');
+      state = {
+        trip,
+        participants: [],
+        expenses: [],
+        settlement: { balances: [], transfers: [] },
+        activeTab: 'participants',
+        modal: null,
+        selectedExpenseId: null,
+        toast: null,
+        isDemo: false,
+      };
       location.hash = `#/trip/${trip.id}`;
     } catch (error) {
-      showFormError(event.currentTarget, error.message);
+      showFormError(form, getErrorMessage(error));
+    } finally {
+      setFormPending(form, false);
     }
   });
 
   document.getElementById('participant-form')?.addEventListener('submit', async event => {
     event.preventDefault();
+    const form = event.currentTarget;
     const input = document.getElementById('participant-name');
     const name = input.value.trim();
     if (!name) return;
 
+    setFormPending(form, true);
     try {
       const participant = await api.addParticipant(state.trip.id, name);
       await api.getParticipant(state.trip.id, participant.id);
       await refreshTrip(`${name} добавлен в поездку`);
     } catch (error) {
-      showInlineError(input, error.message);
+      showInlineError(input, getErrorMessage(error));
+    } finally {
+      setFormPending(form, false);
     }
   });
 
   document.getElementById('expense-form')?.addEventListener('submit', async event => {
     event.preventDefault();
+    const form = event.currentTarget;
     const description = document.getElementById('expense-description').value.trim();
     const amount = Number(document.getElementById('expense-amount').value);
     const paidByParticipantId = document.getElementById('expense-payer').value;
@@ -728,6 +752,7 @@ function bind() {
       return;
     }
 
+    setFormPending(form, true);
     try {
       const expense = await api.addExpense(state.trip.id, {
         amount,
@@ -738,7 +763,9 @@ function bind() {
       await api.getExpense(state.trip.id, expense.id);
       await refreshTrip('Расход добавлен');
     } catch (error) {
-      showFormError(event.currentTarget, error.message);
+      showFormError(form, getErrorMessage(error));
+    } finally {
+      setFormPending(form, false);
     }
   });
 
@@ -765,6 +792,7 @@ function showInlineError(input, message) {
   if (!error) {
     error = document.createElement('span');
     error.className = 'inline-error';
+    error.setAttribute('role', 'alert');
     input.insertAdjacentElement('afterend', error);
   }
   error.textContent = message;
@@ -775,9 +803,24 @@ function showFormError(form, message) {
   if (!error) {
     error = document.createElement('span');
     error.className = 'inline-error';
+    error.setAttribute('role', 'alert');
     form.querySelector('.modal-footer, .form-actions')?.insertAdjacentElement('beforebegin', error);
   }
   error.textContent = message;
+}
+
+function setFormPending(form, pending) {
+  form.setAttribute('aria-busy', String(pending));
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = pending;
+}
+
+function getErrorMessage(error) {
+  if (error instanceof TypeError) {
+    return `Не удалось подключиться к API по адресу ${API_BASE_URL}. Убедитесь, что backend запущен.`;
+  }
+
+  return error?.message || 'Не удалось выполнить запрос. Попробуйте ещё раз.';
 }
 
 function clearToastLater() {
