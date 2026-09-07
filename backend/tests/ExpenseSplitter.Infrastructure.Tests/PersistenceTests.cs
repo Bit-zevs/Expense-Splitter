@@ -514,11 +514,11 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
     {
         var options = await database.CreateDatabaseAsync();
         await using var context = new ExpenseSplitterDbContext(options);
-        Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync()).Count());
         await context.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
         Assert.Empty(await context.Database.GetAppliedMigrationsAsync());
         await context.Database.MigrateAsync();
-        Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync()).Count());
         var (trip, _, _, _) = CreateTrip();
         context.Trips.Add(trip);
         await context.SaveChangesAsync();
