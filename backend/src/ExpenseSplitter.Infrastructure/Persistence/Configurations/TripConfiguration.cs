@@ -12,6 +12,13 @@ internal sealed class TripConfiguration : IEntityTypeConfiguration<Trip>
         builder.HasKey(trip => trip.Id);
         builder.Property(trip => trip.Id).ValueGeneratedNever();
         builder.Property(trip => trip.Name).IsRequired();
+        builder.Property(trip => trip.Currency)
+            .HasMaxLength(3)
+            .HasDefaultValue(Trip.DefaultCurrency)
+            .IsRequired();
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_Trips_Currency",
+            "\"Currency\" IN ('RUB', 'EUR', 'USD')"));
         builder.Property(trip => trip.CreatedAt)
             .HasColumnType("timestamp with time zone")
             .HasPrecision(6)

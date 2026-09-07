@@ -20,7 +20,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
     public async Task RoundTripsAggregateWithMaximumAmountZeroSharesAndDuplicateUnicodeNames()
     {
         var options = await database.CreateDatabaseAsync();
-        var trip = new Trip(new string('Я', 400));
+        var trip = new Trip(new string('Я', 400), "USD");
         var payer = trip.AddParticipant(new string('А', 400));
         var debtor = trip.AddParticipant(payer.Name);
         trip.AddParticipant("Третий участник");
@@ -37,6 +37,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         var loaded = await LoadTripAsync(read, trip.Id);
         Assert.NotSame(trip, loaded);
         Assert.Equal(trip.Name, loaded.Name);
+        Assert.Equal("USD", loaded.Currency);
         AssertTimestamp(trip.CreatedAt, loaded.CreatedAt);
         Assert.Equal(
             trip.Participants.OrderBy(participant => participant.Id).Select(participant => (participant.Id, participant.Name)),
@@ -513,11 +514,11 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
     {
         var options = await database.CreateDatabaseAsync();
         await using var context = new ExpenseSplitterDbContext(options);
-        Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync()).Count());
         await context.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
         Assert.Empty(await context.Database.GetAppliedMigrationsAsync());
         await context.Database.MigrateAsync();
-        Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync()).Count());
         var (trip, _, _, _) = CreateTrip();
         context.Trips.Add(trip);
         await context.SaveChangesAsync();

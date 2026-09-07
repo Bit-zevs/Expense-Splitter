@@ -30,16 +30,21 @@ public static class TripEndpoints
         try
         {
             var result = await handler.HandleAsync(
-                new CreateTripCommand(request.Name),
+                new CreateTripCommand(request.Name, request.Currency),
                 cancellationToken);
 
             return Results.Created($"/trips/{result.Id}", result);
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
+            var field = exception.ParamName == "currency" ? "currency" : "name";
+            var message = field == "currency"
+                ? "Currency must be one of: RUB, EUR, USD."
+                : "Trip name is required.";
+
             return Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["name"] = ["Trip name is required."]
+                [field] = [message]
             });
         }
     }
@@ -56,5 +61,5 @@ public static class TripEndpoints
             : Results.Ok(result);
     }
 
-    public sealed record CreateTripRequest(string? Name);
+    public sealed record CreateTripRequest(string? Name, string? Currency = null);
 }

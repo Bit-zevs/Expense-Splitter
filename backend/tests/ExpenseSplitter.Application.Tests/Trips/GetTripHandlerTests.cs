@@ -9,7 +9,7 @@ public sealed class GetTripHandlerTests
     [Fact]
     public async Task ReturnsTripWhenItExists()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = new Trip("Summer vacation", "USD");
         var store = new StubTripStore(trip);
         var handler = new GetTripHandler(store);
         using var cancellation = new CancellationTokenSource();
@@ -19,6 +19,7 @@ public sealed class GetTripHandlerTests
         Assert.NotNull(result);
         Assert.Equal(trip.Id, result.Id);
         Assert.Equal(trip.Name, result.Name);
+        Assert.Equal("USD", result.Currency);
         Assert.Equal(trip.CreatedAt, result.CreatedAt);
         Assert.Equal(trip.Id, store.RequestedId);
         Assert.Equal(cancellation.Token, store.CancellationToken);

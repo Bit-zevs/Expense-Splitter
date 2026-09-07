@@ -5,18 +5,33 @@ namespace ExpenseSplitter.Domain.Entities;
 
 public sealed class Trip
 {
+    public const string DefaultCurrency = "RUB";
+
+    private static readonly HashSet<string> SupportedCurrencies =
+        new(StringComparer.OrdinalIgnoreCase) { "RUB", "EUR", "USD" };
+
     private readonly List<Participant> _participants = [];
     private readonly List<Expense> _expenses = [];
 
     // Required by EF Core.
     private Trip() { }
 
-    public Trip(string name)
+    public Trip(string name, string currency = DefaultCurrency)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+
+        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        if (!SupportedCurrencies.Contains(normalizedCurrency))
+        {
+            throw new ArgumentException(
+                "Currency must be one of: RUB, EUR, USD.",
+                nameof(currency));
+        }
 
         Id = Guid.NewGuid();
         Name = name.Trim();
+        Currency = normalizedCurrency;
         CreatedAt = DateTimeOffset.UtcNow;
         CreatedAt = CreatedAt.AddTicks(-(CreatedAt.Ticks % 10));
     }
@@ -24,6 +39,8 @@ public sealed class Trip
     public Guid Id { get; private set; }
 
     public string Name { get; private set; } = string.Empty;
+
+    public string Currency { get; private set; } = DefaultCurrency;
 
     public DateTimeOffset CreatedAt { get; private set; }
 

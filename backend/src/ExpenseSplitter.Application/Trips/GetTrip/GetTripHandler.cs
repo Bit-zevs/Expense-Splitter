@@ -1,6 +1,10 @@
 namespace ExpenseSplitter.Application.Trips.GetTrip;
 
-public sealed record GetTripResult(Guid Id, string Name, DateTimeOffset CreatedAt);
+public sealed record GetTripResult(
+    Guid Id,
+    string Name,
+    string Currency,
+    DateTimeOffset CreatedAt);
 
 public sealed class GetTripHandler(ITripStore tripStore)
 {
@@ -12,6 +16,6 @@ public sealed class GetTripHandler(ITripStore tripStore)
 
         return trip is null
             ? null
-            : new GetTripResult(trip.Id, trip.Name, trip.CreatedAt);
+            : new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt);
     }
 }

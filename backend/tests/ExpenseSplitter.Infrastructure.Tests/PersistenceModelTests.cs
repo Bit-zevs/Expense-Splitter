@@ -43,6 +43,7 @@ public sealed class PersistenceModelTests
         Assert.Equal(4, tables.Count);
         Assert.Equal("numeric(29,2)", tables["Expenses"].FindColumn("Amount")!.StoreType);
         Assert.Equal("numeric(29,2)", tables["ExpenseParticipants"].FindColumn("Amount")!.StoreType);
+        Assert.Equal("character varying(3)", tables["Trips"].FindColumn("Currency")!.StoreType);
         Assert.Equal(new[] { "TripId" },
             Assert.Single(tables["Participants"].Indexes).Columns.Select(column => column.Name));
         Assert.Equal(2, tables["Expenses"].Indexes.Count());
@@ -70,7 +71,7 @@ public sealed class PersistenceModelTests
     {
         using var context = CreateContext();
         Assert.Equal(
-            ["20260905185942_InitialPersistence"],
+            ["20260905185942_InitialPersistence", "20260907123139_AddTripCurrency"],
             context.Database.GetMigrations());
         Assert.False(context.Database.HasPendingModelChanges());
     }
