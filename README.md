@@ -1,6 +1,7 @@
 # Expense Splitter
 
-Educational ASP.NET Core backend for splitting group expenses during trips and events.
+Application for splitting group expenses during trips and events, with independent
+ASP.NET Core backend and browser frontend projects.
 
 Participants belong to a trip, record expenses, and receive a clear settlement plan: who should pay whom and how much.
 
@@ -54,6 +55,23 @@ dotnet test .\ExpenseSplitter.sln
 Open `ExpenseSplitter.sln` from the repository root in the IDE. It groups the current
 projects under `backend` and leaves the solution root available for future clients and
 other top-level components.
+
+## Frontend
+
+The independent frontend project is in [`frontend`](frontend). It preserves the original
+static design and communicates with the backend over HTTP; it is not hosted by or built
+into the ASP.NET project.
+
+```powershell
+cd .\frontend
+npm install
+npm run dev
+```
+
+The development server opens at `http://localhost:5173` and uses
+`http://localhost:5050` as the default API address. Set `VITE_API_BASE_URL` in
+`frontend/.env.local` when the API is hosted elsewhere. See
+[`frontend/README.md`](frontend/README.md) for the frontend commands.
 
 Integration tests require a running Docker engine with Linux containers. They create
 their own temporary PostgreSQL container and databases, apply migrations, and verify
