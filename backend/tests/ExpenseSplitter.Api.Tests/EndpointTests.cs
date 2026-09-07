@@ -11,6 +11,23 @@ namespace ExpenseSplitter.Api.Tests;
 public sealed class EndpointTests
 {
     [Fact]
+    public async Task FrontendOriginIsAllowedByCorsPolicy()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/trips");
+        request.Headers.Add("Origin", "http://localhost:5173");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(
+            "http://localhost:5173",
+            Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+    }
+
+    [Fact]
     public void ApplicationFailsToStartWithoutConnectionString()
     {
         using var factory = new MissingConnectionStringApiFactory();
