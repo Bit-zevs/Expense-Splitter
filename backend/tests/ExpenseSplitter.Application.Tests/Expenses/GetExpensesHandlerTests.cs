@@ -26,7 +26,7 @@ public sealed class GetExpensesHandlerTests
         Assert.Equal(expense.Description, actual.Description);
         Assert.Equal(expense.PaidByParticipantId, actual.PaidByParticipantId);
         Assert.Equal("equal", actual.SplitType);
-        Assert.Equal(expense.CreatedAt, actual.CreatedAt);
+        Assert.Equal(expense.OccurredAt, actual.OccurredAt);
         var share = Assert.Single(actual.Shares);
         Assert.Equal(participant.Id, share.ParticipantId);
         Assert.Equal(expense.Amount, share.Amount);

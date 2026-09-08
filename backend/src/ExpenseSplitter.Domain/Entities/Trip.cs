@@ -58,20 +58,23 @@ public sealed class Trip
     public Expense AddEqualExpenseForAll(
         decimal amount,
         string description,
-        Guid paidByParticipantId)
+        Guid paidByParticipantId,
+        DateTimeOffset? occurredAt = null)
     {
         return AddEqualExpense(
             amount,
             description,
             paidByParticipantId,
-            _participants.Select(participant => participant.Id));
+            _participants.Select(participant => participant.Id),
+            occurredAt);
     }
 
     public Expense AddEqualExpense(
         decimal amount,
         string description,
         Guid paidByParticipantId,
-        IEnumerable<Guid> participantIds)
+        IEnumerable<Guid> participantIds,
+        DateTimeOffset? occurredAt = null)
     {
         ArgumentNullException.ThrowIfNull(participantIds);
 
@@ -97,9 +100,31 @@ public sealed class Trip
             description,
             paidByParticipantId,
             SplitType.Equal,
-            shares);
+            shares,
+            occurredAt);
 
         _expenses.Add(expense);
         return expense;
+    }
+
+    public bool RemoveExpense(Guid expenseId)
+    {
+        var expense = _expenses.SingleOrDefault(candidate => candidate.Id == expenseId);
+        return expense is not null && _expenses.Remove(expense);
+    }
+
+    public bool RemoveParticipant(Guid participantId)
+    {
+        var participant = _participants.SingleOrDefault(candidate => candidate.Id == participantId);
+        if (participant is null)
+        {
+            return false;
+        }
+
+        _expenses.RemoveAll(expense =>
+            expense.PaidByParticipantId == participantId
+            || expense.ParticipantIds.Contains(participantId));
+        _participants.Remove(participant);
+        return true;
     }
 }

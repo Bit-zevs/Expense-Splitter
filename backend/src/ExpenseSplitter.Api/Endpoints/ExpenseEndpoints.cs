@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Expenses;
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
+using ExpenseSplitter.Application.Expenses.DeleteExpense;
 using ExpenseSplitter.Application.Expenses.GetExpense;
 using ExpenseSplitter.Application.Expenses.GetExpenses;
 
@@ -30,6 +31,14 @@ public static class ExpenseEndpoints
             .Produces<ExpenseResult>()
             .Produces(StatusCodes.Status404NotFound);
 
+        endpoints.MapDelete(
+                "/trips/{tripId:guid}/expenses/{expenseId:guid}",
+                DeleteExpenseAsync)
+            .WithName("DeleteExpense")
+            .WithSummary("Deletes an expense")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 
@@ -45,7 +54,8 @@ public static class ExpenseEndpoints
                 request.Amount,
                 request.Description,
                 request.PaidByParticipantId,
-                request.ParticipantIds);
+                request.ParticipantIds,
+                request.OccurredAt);
             var result = await handler.HandleAsync(tripId, command, cancellationToken);
 
             return result is null
@@ -89,9 +99,21 @@ public static class ExpenseEndpoints
             : Results.Ok(result);
     }
 
+    private static async Task<IResult> DeleteExpenseAsync(
+        Guid tripId,
+        Guid expenseId,
+        DeleteExpenseHandler handler,
+        CancellationToken cancellationToken)
+    {
+        return await handler.HandleAsync(tripId, expenseId, cancellationToken)
+            ? Results.NoContent()
+            : Results.NotFound();
+    }
+
     public sealed record CreateEqualExpenseRequest(
         decimal Amount,
         string? Description,
         Guid PaidByParticipantId,
-        IReadOnlyCollection<Guid>? ParticipantIds);
+        IReadOnlyCollection<Guid>? ParticipantIds,
+        DateTimeOffset? OccurredAt = null);
 }

@@ -22,7 +22,7 @@ internal sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         builder.Property(expense => expense.Amount).HasPrecision(29, 2);
         builder.Property(expense => expense.Description).IsRequired();
         builder.Property(expense => expense.SplitType).HasConversion<int>();
-        builder.Property(expense => expense.CreatedAt)
+        builder.Property(expense => expense.OccurredAt)
             .HasColumnType("timestamp with time zone")
             .HasPrecision(6)
             .ValueGeneratedNever();
@@ -34,7 +34,7 @@ internal sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
             .IsRequired()
             .OnDelete(DeleteBehavior.NoAction);
 
-        builder.HasIndex("TripId", nameof(Expense.CreatedAt));
+        builder.HasIndex("TripId", nameof(Expense.OccurredAt));
         builder.HasIndex(expense => expense.PaidByParticipantId);
 
         builder.OwnsMany(expense => expense.Shares, shares =>

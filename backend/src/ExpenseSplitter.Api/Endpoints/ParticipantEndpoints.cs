@@ -1,5 +1,6 @@
 using ExpenseSplitter.Application.Participants;
 using ExpenseSplitter.Application.Participants.AddParticipant;
+using ExpenseSplitter.Application.Participants.DeleteParticipant;
 using ExpenseSplitter.Application.Participants.GetParticipant;
 using ExpenseSplitter.Application.Participants.GetParticipants;
 
@@ -28,6 +29,14 @@ public static class ParticipantEndpoints
             .WithName("GetParticipant")
             .WithSummary("Gets a trip participant by ID")
             .Produces<ParticipantResult>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        endpoints.MapDelete(
+                "/trips/{tripId:guid}/participants/{participantId:guid}",
+                DeleteParticipantAsync)
+            .WithName("DeleteParticipant")
+            .WithSummary("Deletes a participant and expenses involving them")
+            .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound);
 
         return endpoints;
@@ -85,6 +94,17 @@ public static class ParticipantEndpoints
         return result is null
             ? Results.NotFound()
             : Results.Ok(result);
+    }
+
+    private static async Task<IResult> DeleteParticipantAsync(
+        Guid tripId,
+        Guid participantId,
+        DeleteParticipantHandler handler,
+        CancellationToken cancellationToken)
+    {
+        return await handler.HandleAsync(tripId, participantId, cancellationToken)
+            ? Results.NoContent()
+            : Results.NotFound();
     }
 
     public sealed record AddParticipantRequest(string? Name);

@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | `Trips` | `Id` | `Name`, `CreatedAt` |
 | `Participants` | `Id` | shadow `TripId`, `Name` |
-| `Expenses` | `Id` | shadow `TripId`, `Amount`, `Description`, `PaidByParticipantId`, `SplitType`, `CreatedAt` |
+| `Expenses` | `Id` | shadow `TripId`, `Amount`, `Description`, `PaidByParticipantId`, `SplitType`, `OccurredAt` |
 | `ExpenseParticipants` | `(ExpenseId, ParticipantId)` | `Amount` |
 
 `ExpenseParticipants` хранит owned-коллекцию `Expense.Shares` (`ExpenseShare`).
@@ -20,9 +20,11 @@
 `ParticipantIds` вычисляется из долей и исключён из EF-модели. `SettlementTransfer`
 является результатом расчёта и не сохраняется.
 
-GUID создаёт Domain, для ключей отключена генерация EF/БД. `CreatedAt` также задаёт
-Domain и сразу нормализует значение до микросекунд; PostgreSQL хранит UTC в
-`timestamp(6) with time zone`. Поэтому POST-ответ и последующий GET возвращают
+GUID создаёт Domain, для ключей отключена генерация EF/БД. Время создания поездки
+`Trip.CreatedAt` задаёт Domain с точностью БД. Время расхода `Expense.OccurredAt`
+можно передать вручную; если оно не передано, используется текущее время. Domain
+переводит его в UTC и отбрасывает секунды. PostgreSQL хранит оба значения в
+`timestamp(6) with time zone`, поэтому POST-ответ и последующий GET возвращают
 одно и то же значение времени.
 Строки обязательны и хранятся как `text`: Domain не задаёт максимальную длину.
 Имена участников могут совпадать. `SplitType` хранится как `integer`, CHECK допускает
@@ -49,8 +51,13 @@ Deferred-настройка задаётся SQL миграции, поскол�
 миграцией необходимо сохранить `DEFERRABLE INITIALLY DEFERRED`.
 Синтаксис описан в [PostgreSQL ALTER TABLE](https://www.postgresql.org/docs/17/sql-altertable.html).
 
-Удаление расхода удаляет только его доли; участники остаются. Правила удаления
-в EF не добавляют бизнес-операции удаления в Domain/API.
+Удаление расхода через `Trip.RemoveExpense` удаляет только его доли; участники
+остаются. `Trip.RemoveParticipant` сначала удаляет все расходы, где участник является
+плательщиком или входит в доли, а затем самого участника. Это сохраняет инварианты
+агрегата и позволяет выполнить удаление при `NO ACTION`-ссылках на участника.
+Удаление корня `Trip` выполняет application-сценарий через хранилище, после чего
+каскады БД удаляют весь агрегат. API предоставляет `DELETE` для всех трёх ресурсов;
+успех возвращает `204`, отсутствующий ресурс — `404`.
 
 ## Деньги, индексы и границы проверки
 
@@ -66,7 +73,7 @@ Domain дополнительно допускает не более двух д
 допустимых Domain-значений. Проверка лишних десятичных знаков выполняется в Domain:
 SQL-тип с scale 2 сам по себе может округлять значения при записи в обход Domain.
 
-Индексы: `Participants(TripId)`, `Expenses(TripId, CreatedAt)`,
+Индексы: `Participants(TripId)`, `Expenses(TripId, OccurredAt)`,
 `Expenses(PaidByParticipantId)`, `ExpenseParticipants(ParticipantId)`.
 Составной PK долей покрывает поиск по `ExpenseId`. Дополнительных индексов на
 `Expenses(TripId)` и `ExpenseParticipants(ExpenseId)` нет. Имена не уникальны.

@@ -11,14 +11,16 @@
 В Domain реализованы методы `Trip.AddEqualExpense` и `Trip.AddEqualExpenseForAll`,
 а сам расчёт вынесен во внутренний `EqualSplitCalculator`. `Trip` выступает корнем
 агрегата: он проверяет принадлежность плательщика и выбранных участников группе,
-вычисляет доли и добавляет готовый расход в `Trip.Expenses`. Свойства сущностей
+вычисляет доли и добавляет готовый расход в `Trip.Expenses`. Необязательный
+`occurredAt` задаёт время операции вручную; оно хранится в UTC с точностью до минуты.
+Если значение не передано, Domain использует текущее время. Свойства сущностей
 закрыты для внешнего изменения, чтобы нельзя было обойти эти правила.
 
 Application-сценарий реализован в `CreateEqualExpenseHandler`: он сначала проверяет
 поля команды, затем асинхронно загружает поездку с участниками, вызывает
 `Trip.AddEqualExpense` и сохраняет результат с передачей `CancellationToken`.
 Endpoint `POST /trips/{tripId}/expenses` принимает сумму, описание, ID плательщика
-и список выбранных ID. Он возвращает 201 с рабочим `Location` на созданный расход,
+список выбранных ID и необязательный `occurredAt`. Он возвращает 201 с рабочим `Location` на созданный расход,
 400 для некорректного запроса и 404 для отсутствующей поездки.
 Infrastructure сохраняет расход и его доли в PostgreSQL: таблицы `Expenses` и
 `ExpenseParticipants`, owned-коллекция `ExpenseShare` с первичным ключом
@@ -34,7 +36,11 @@ Infrastructure сохраняет расход и его доли в PostgreSQL:
 
 ```csharp
 var selectedExpense = trip.AddEqualExpense(
-    100m, "Ужин", payerId, new[] { aliceId, bobId, charlieId });
+    100m,
+    "Ужин",
+    payerId,
+    new[] { aliceId, bobId, charlieId },
+    new DateTimeOffset(2026, 9, 8, 19, 30, 0, TimeSpan.FromHours(5)));
 
 var everyoneExpense = trip.AddEqualExpenseForAll(100m, "Такси", payerId);
 ```

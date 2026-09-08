@@ -20,7 +20,7 @@ public sealed class Expense
 
     public SplitType SplitType { get; private set; }
 
-    public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset OccurredAt { get; private set; }
 
     private readonly List<ExpenseShare> _shares = [];
 
@@ -32,7 +32,8 @@ public sealed class Expense
         string description,
         Guid paidByParticipantId,
         SplitType splitType,
-        IEnumerable<ExpenseShare> shares)
+        IEnumerable<ExpenseShare> shares,
+        DateTimeOffset? occurredAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
         ArgumentNullException.ThrowIfNull(shares);
@@ -86,8 +87,15 @@ public sealed class Expense
         Description = description.Trim();
         PaidByParticipantId = paidByParticipantId;
         SplitType = splitType;
-        CreatedAt = DateTimeOffset.UtcNow;
-        CreatedAt = CreatedAt.AddTicks(-(CreatedAt.Ticks % 10));
+        var utcOccurredAt = (occurredAt ?? DateTimeOffset.UtcNow).ToUniversalTime();
+        OccurredAt = new DateTimeOffset(
+            utcOccurredAt.Year,
+            utcOccurredAt.Month,
+            utcOccurredAt.Day,
+            utcOccurredAt.Hour,
+            utcOccurredAt.Minute,
+            0,
+            TimeSpan.Zero);
         _shares.AddRange(materializedShares);
     }
 }

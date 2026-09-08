@@ -7,7 +7,8 @@ public sealed record CreateEqualExpenseCommand(
     decimal Amount,
     string? Description,
     Guid PaidByParticipantId,
-    IReadOnlyCollection<Guid>? ParticipantIds);
+    IReadOnlyCollection<Guid>? ParticipantIds,
+    DateTimeOffset? OccurredAt = null);
 
 public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
 {
@@ -29,12 +30,14 @@ public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
             ? trip.AddEqualExpenseForAll(
                 command.Amount,
                 command.Description!,
-                command.PaidByParticipantId)
+                command.PaidByParticipantId,
+                command.OccurredAt)
             : trip.AddEqualExpense(
                 command.Amount,
                 command.Description!,
                 command.PaidByParticipantId,
-                command.ParticipantIds);
+                command.ParticipantIds,
+                command.OccurredAt);
 
         await tripStore.SaveChangesAsync(cancellationToken);
 

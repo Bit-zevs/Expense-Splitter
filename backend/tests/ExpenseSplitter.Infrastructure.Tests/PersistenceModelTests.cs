@@ -48,7 +48,7 @@ public sealed class PersistenceModelTests
             Assert.Single(tables["Participants"].Indexes).Columns.Select(column => column.Name));
         Assert.Equal(2, tables["Expenses"].Indexes.Count());
         Assert.Contains(tables["Expenses"].Indexes,
-            index => index.Columns.Select(column => column.Name).SequenceEqual(new[] { "TripId", "CreatedAt" }));
+            index => index.Columns.Select(column => column.Name).SequenceEqual(new[] { "TripId", "OccurredAt" }));
         Assert.Contains(tables["Expenses"].Indexes,
             index => index.Columns.Select(column => column.Name).SequenceEqual(new[] { "PaidByParticipantId" }));
         Assert.Equal(new[] { "ParticipantId" },
@@ -71,7 +71,11 @@ public sealed class PersistenceModelTests
     {
         using var context = CreateContext();
         Assert.Equal(
-            ["20260905185942_InitialPersistence", "20260907123139_AddTripCurrency"],
+            [
+                "20260905185942_InitialPersistence",
+                "20260907123139_AddTripCurrency",
+                "20260908124458_RenameExpenseCreatedAtToOccurredAt"
+            ],
             context.Database.GetMigrations());
         Assert.False(context.Database.HasPendingModelChanges());
     }
