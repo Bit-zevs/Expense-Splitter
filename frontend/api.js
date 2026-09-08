@@ -46,18 +46,27 @@ export function createApi(baseUrl, fetchImplementation = globalThis.fetch) {
       body: JSON.stringify({ name, currency }),
     }),
     getTrip: tripId => request(`/trips/${tripId}`),
+    deleteTrip: tripId => request(`/trips/${tripId}`, { method: 'DELETE' }),
     getParticipants: tripId => request(`/trips/${tripId}/participants`),
     getParticipant: (tripId, participantId) => request(`/trips/${tripId}/participants/${participantId}`),
     addParticipant: (tripId, name) => request(`/trips/${tripId}/participants`, {
       method: 'POST',
       body: JSON.stringify({ name }),
     }),
+    deleteParticipant: (tripId, participantId) => request(
+      `/trips/${tripId}/participants/${participantId}`,
+      { method: 'DELETE' },
+    ),
     getExpenses: tripId => request(`/trips/${tripId}/expenses`),
     getExpense: (tripId, expenseId) => request(`/trips/${tripId}/expenses/${expenseId}`),
     addExpense: (tripId, expense) => request(`/trips/${tripId}/expenses`, {
       method: 'POST',
       body: JSON.stringify(expense),
     }),
+    deleteExpense: (tripId, expenseId) => request(
+      `/trips/${tripId}/expenses/${expenseId}`,
+      { method: 'DELETE' },
+    ),
     getBalances: tripId => request(`/trips/${tripId}/balances`),
     getSettlements: tripId => request(`/trips/${tripId}/settlements`),
   };

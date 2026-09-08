@@ -27,13 +27,13 @@ function createDemoState() {
     { id: p4, name: 'Ольга' },
   ];
 
-  const expense = (id, amount, description, paidByParticipantId, participantIds, createdAt) => ({
+  const expense = (id, amount, description, paidByParticipantId, participantIds, occurredAt) => ({
     id,
     amount,
     description,
     paidByParticipantId,
     splitType: 'equal',
-    createdAt,
+    occurredAt,
     shares: splitIntoShares(amount, participantIds),
   });
 
@@ -54,6 +54,7 @@ function createDemoState() {
     activeTab: 'expenses',
     modal: null,
     selectedExpenseId: null,
+    pendingDeletion: null,
     toast: null,
   };
 }
@@ -66,6 +67,7 @@ let state = {
   activeTab: 'expenses',
   modal: null,
   selectedExpenseId: null,
+  pendingDeletion: null,
   toast: null,
   isDemo: false,
 };
@@ -88,6 +90,23 @@ function dateLabel(value) {
   }).format(new Date(value));
 }
 
+function dateTimeLabel(value) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function currentLocalDateTime() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localTime.toISOString().slice(0, 16);
+}
+
 function icon(name, size = 18) {
   const paths = {
     plus: '<path d="M12 5v14M5 12h14"/>',
@@ -99,6 +118,9 @@ function icon(name, size = 18) {
     link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     check: '<path d="m20 6-11 11-5-5"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    warning: '<path d="M10.3 3.7 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || ''}</svg>`;
 }
@@ -201,6 +223,7 @@ function tripPage() {
               <div class="trip-actions">
                 <button class="btn btn-outline" data-copy-link>${icon('link', 16)} Скопировать ссылку</button>
                 ${primaryTripAction()}
+                <button class="btn btn-danger-ghost" data-delete-trip>${icon('trash', 16)} Удалить поездку</button>
               </div>
             </div>
             <nav class="tabs" aria-label="Разделы поездки">
@@ -261,7 +284,7 @@ function expensesTab() {
             <span class="row-icon">${icon('receipt', 18)}</span>
             <span class="row-main">
               <strong>${escapeHtml(expense.description)}</strong>
-              <small>${dateLabel(expense.createdAt)} · оплатил ${escapeHtml(payer?.name || '—')} · ${expense.shares.length} ${plural(expense.shares.length, 'участник', 'участника', 'участников')}</small>
+              <small>${dateTimeLabel(expense.occurredAt)} · оплатил ${escapeHtml(payer?.name || '—')} · ${expense.shares.length} ${plural(expense.shares.length, 'участник', 'участника', 'участников')}</small>
             </span>
             <span class="row-amount">${money(expense.amount)}</span>
             <span class="row-chevron">${icon('arrow', 16)}</span>
@@ -292,6 +315,7 @@ function participantsTab() {
             <div class="avatar">${escapeHtml(participant.name.slice(0, 1).toUpperCase())}</div>
             <div class="person-main"><strong>${escapeHtml(participant.name)}</strong><span>Участник ${index + 1}</span></div>
             <div class="person-meta"><span>Оплатил</span><strong>${money(paid)}</strong></div>
+            <button class="icon-btn icon-btn-danger" type="button" data-delete-participant="${participant.id}" aria-label="Удалить участника ${escapeHtml(participant.name)}">${icon('trash', 17)}</button>
           </div>`;
       }).join('')}
     </div>`;
@@ -370,6 +394,7 @@ function emptyState(title, text, open, action) {
 function modalMarkup() {
   if (state.modal === 'participant') return participantModal();
   if (state.modal === 'expense-detail') return expenseDetailModal();
+  if (state.modal === 'delete-confirmation') return deleteConfirmationModal();
   return expenseModal();
 }
 
@@ -422,6 +447,17 @@ function expenseModal() {
               <select class="input" id="expense-payer">${state.participants.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select>
             </div>
             <div class="field span-2">
+              <label for="expense-occurred-at">Когда произошёл расход</label>
+              <div class="datetime-control">
+                <div class="datetime-input">
+                  ${icon('clock', 17)}
+                  <input class="input" id="expense-occurred-at" required step="60" type="datetime-local" value="${currentLocalDateTime()}" />
+                </div>
+                <button class="btn btn-outline" type="button" data-set-current-time>Сейчас</button>
+              </div>
+              <span class="field-hint">Дата и время указаны в вашем часовом поясе.</span>
+            </div>
+            <div class="field span-2">
               <div class="split-label"><label>Между кем разделить</label><button class="text-button" type="button" data-toggle-all>Выбрать всех</button></div>
               <div class="check-list">
                 ${state.participants.map(p => `<label class="check-item"><input type="checkbox" name="split-participant" value="${p.id}" checked /><span>${escapeHtml(p.name)}</span></label>`).join('')}
@@ -447,7 +483,7 @@ function expenseDetailModal() {
     <div class="modal-backdrop" data-close="modal">
       <div class="modal" role="dialog" aria-modal="true" aria-label="Расход" data-modal-card>
         <div class="modal-head">
-          <div><div class="section-kicker">Расход</div><h2>${escapeHtml(expense.description)}</h2><p>${dateLabel(expense.createdAt)}</p></div>
+          <div><div class="section-kicker">Расход</div><h2>${escapeHtml(expense.description)}</h2><p>${dateTimeLabel(expense.occurredAt)}</p></div>
           <button class="icon-btn" type="button" data-close="modal" aria-label="Закрыть">${icon('close', 17)}</button>
         </div>
         <div class="modal-body detail-body">
@@ -461,6 +497,54 @@ function expenseDetailModal() {
             ${expense.shares.map(share => `<div><span>${escapeHtml(participantById(share.participantId)?.name || 'Участник')}</span><strong>${money(share.amount)}</strong></div>`).join('')}
           </div>
         </div>
+        <div class="modal-footer detail-footer">
+          <button class="btn btn-danger-ghost" type="button" data-delete-expense="${expense.id}">${icon('trash', 16)} Удалить расход</button>
+          <button class="btn btn-outline" type="button" data-close="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function deleteConfirmationModal() {
+  const deletion = state.pendingDeletion;
+  if (!deletion) return '';
+
+  const content = {
+    expense: {
+      kicker: 'Удаление расхода',
+      title: `Удалить «${deletion.label}»?`,
+      text: 'Расход и все его доли будут удалены из расчёта поездки.',
+      action: 'Удалить расход',
+    },
+    participant: {
+      kicker: 'Удаление участника',
+      title: `Удалить ${deletion.label}?`,
+      text: 'Также удалятся расходы, где этот участник платил или участвовал в делении.',
+      action: 'Удалить участника',
+    },
+    trip: {
+      kicker: 'Удаление поездки',
+      title: `Удалить «${deletion.label}»?`,
+      text: 'Поездка, участники и все расходы будут удалены без возможности восстановления.',
+      action: 'Удалить поездку',
+    },
+  }[deletion.type];
+
+  return `
+    <div class="modal-backdrop" data-close="modal">
+      <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-description" data-modal-card>
+        <form id="delete-form">
+          <div class="confirm-body">
+            <div class="danger-icon">${icon('warning', 22)}</div>
+            <div class="section-kicker danger-kicker">${content.kicker}</div>
+            <h2 id="delete-title">${escapeHtml(content.title)}</h2>
+            <p id="delete-description">${content.text}</p>
+          </div>
+          <div class="modal-footer confirm-actions">
+            <button class="btn btn-outline" type="button" data-close="modal">Отмена</button>
+            <button class="btn btn-danger" type="submit">${icon('trash', 16)} ${content.action}</button>
+          </div>
+        </form>
       </div>
     </div>`;
 }
@@ -588,6 +672,7 @@ async function loadTrip(tripId, activeTab = 'expenses') {
     activeTab,
     modal: null,
     selectedExpenseId: null,
+    pendingDeletion: null,
     toast: null,
     isDemo: false,
   };
@@ -632,6 +717,20 @@ function bind() {
     render();
   }));
 
+  document.querySelector('[data-delete-trip]')?.addEventListener('click', () => {
+    openDeleteConfirmation('trip', state.trip.id, state.trip.name);
+  });
+
+  document.querySelectorAll('[data-delete-participant]').forEach(button => button.addEventListener('click', () => {
+    const participant = participantById(button.dataset.deleteParticipant);
+    if (participant) openDeleteConfirmation('participant', participant.id, participant.name);
+  }));
+
+  document.querySelector('[data-delete-expense]')?.addEventListener('click', () => {
+    const expense = state.expenses.find(item => item.id === state.selectedExpenseId);
+    if (expense) openDeleteConfirmation('expense', expense.id, expense.description);
+  });
+
   document.querySelectorAll('[data-expense-id]').forEach(button => button.addEventListener('click', async () => {
     try {
       const expense = state.isDemo
@@ -653,6 +752,7 @@ function bind() {
     if (event.currentTarget.classList.contains('modal-backdrop') && event.target.closest('[data-modal-card]')) return;
     state.modal = null;
     state.selectedExpenseId = null;
+    state.pendingDeletion = null;
     render();
   }));
 
@@ -707,6 +807,7 @@ function bind() {
         activeTab: 'participants',
         modal: null,
         selectedExpenseId: null,
+        pendingDeletion: null,
         toast: null,
         isDemo: false,
       };
@@ -743,9 +844,11 @@ function bind() {
     const description = document.getElementById('expense-description').value.trim();
     const amount = Number(document.getElementById('expense-amount').value);
     const paidByParticipantId = document.getElementById('expense-payer').value;
+    const occurredAtInput = document.getElementById('expense-occurred-at');
+    const occurredAt = new Date(occurredAtInput.value);
     const participantIds = [...document.querySelectorAll('input[name="split-participant"]:checked')].map(input => input.value);
 
-    if (!description || !Number.isFinite(amount) || amount <= 0) return;
+    if (!description || !Number.isFinite(amount) || amount <= 0 || Number.isNaN(occurredAt.getTime())) return;
     if (!participantIds.length) {
       const list = document.querySelector('.check-list');
       list?.classList.add('invalid');
@@ -759,6 +862,7 @@ function bind() {
         description,
         paidByParticipantId,
         participantIds,
+        occurredAt: occurredAt.toISOString(),
       });
       await api.getExpense(state.trip.id, expense.id);
       await refreshTrip('Расход добавлен');
@@ -773,6 +877,13 @@ function bind() {
     document.querySelectorAll('input[name="split-participant"]').forEach(input => { input.checked = true; });
   });
 
+  document.querySelector('[data-set-current-time]')?.addEventListener('click', () => {
+    const input = document.getElementById('expense-occurred-at');
+    if (input) input.value = currentLocalDateTime();
+  });
+
+  document.getElementById('delete-form')?.addEventListener('submit', handleDelete);
+
   document.querySelector('[data-copy-link]')?.addEventListener('click', async () => {
     const url = `${location.href.split('#')[0]}#/trip/${state.trip.id}`;
     try {
@@ -784,6 +895,83 @@ function bind() {
     render();
     clearToastLater();
   });
+}
+
+function openDeleteConfirmation(type, id, label) {
+  state.pendingDeletion = { type, id, label };
+  state.modal = 'delete-confirmation';
+  render();
+}
+
+async function handleDelete(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const deletion = state.pendingDeletion;
+  if (!deletion) return;
+
+  setFormPending(form, true);
+  try {
+    if (state.isDemo) {
+      deleteFromDemo(deletion);
+    } else if (deletion.type === 'expense') {
+      await api.deleteExpense(state.trip.id, deletion.id);
+    } else if (deletion.type === 'participant') {
+      await api.deleteParticipant(state.trip.id, deletion.id);
+    } else {
+      await api.deleteTrip(state.trip.id);
+    }
+
+    if (deletion.type === 'trip') {
+      state = {
+        trip: null,
+        participants: [],
+        expenses: [],
+        settlement: { balances: [], transfers: [] },
+        activeTab: 'expenses',
+        modal: null,
+        selectedExpenseId: null,
+        pendingDeletion: null,
+        toast: null,
+        isDemo: false,
+      };
+      location.hash = '#/';
+      render();
+      return;
+    }
+
+    const message = deletion.type === 'expense'
+      ? 'Расход удалён'
+      : `${deletion.label} удалён из поездки`;
+
+    if (state.isDemo) {
+      state.modal = null;
+      state.selectedExpenseId = null;
+      state.pendingDeletion = null;
+      state.settlement = calculateSettlement();
+      state.toast = message;
+      render();
+      clearToastLater();
+    } else {
+      await refreshTrip(message);
+    }
+  } catch (error) {
+    showFormError(form, getErrorMessage(error));
+    setFormPending(form, false);
+  }
+}
+
+function deleteFromDemo(deletion) {
+  if (deletion.type === 'expense') {
+    state.expenses = state.expenses.filter(expense => expense.id !== deletion.id);
+    return;
+  }
+
+  if (deletion.type === 'participant') {
+    state.participants = state.participants.filter(participant => participant.id !== deletion.id);
+    state.expenses = state.expenses.filter(expense =>
+      expense.paidByParticipantId !== deletion.id
+      && !expense.shares.some(share => share.participantId === deletion.id));
+  }
 }
 
 function showInlineError(input, message) {
