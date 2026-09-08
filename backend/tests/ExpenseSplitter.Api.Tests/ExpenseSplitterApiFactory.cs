@@ -67,6 +67,14 @@ internal sealed class InMemoryTripStore : ITripStore
         Guid id,
         CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
+    public Task<Trip?> FindWithExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
+
+    public Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
+
     public async Task<Participant?> FindParticipantByIdAsync(
         Guid tripId,
         Guid participantId,
@@ -90,6 +98,8 @@ internal sealed class InMemoryTripStore : ITripStore
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }
+
+    public void Remove(Trip trip) => _trips.Remove(trip.Id);
 
     public void Add(Trip trip) => _trips.Add(trip.Id, trip);
 

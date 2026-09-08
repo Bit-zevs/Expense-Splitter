@@ -113,6 +113,7 @@ public sealed class EndpointTests
         var trip = new Trip("Trip");
         var payer = trip.AddParticipant("Alice");
         var participant = trip.AddParticipant("Bob");
+        var occurredAt = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
 
@@ -123,7 +124,8 @@ public sealed class EndpointTests
                 amount = 12.34m,
                 description = "Coffee",
                 paidByParticipantId = payer.Id,
-                participantIds = new[] { participant.Id }
+                participantIds = new[] { participant.Id },
+                occurredAt
             });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -136,12 +138,41 @@ public sealed class EndpointTests
         Assert.Equal("equal", expense.GetProperty("splitType").GetString());
         Assert.Single(expense.GetProperty("shares").EnumerateArray());
         Assert.Equal(
-            created.GetProperty("createdAt").GetDateTimeOffset(),
-            expense.GetProperty("createdAt").GetDateTimeOffset());
+            new DateTimeOffset(2026, 9, 8, 9, 37, 0, TimeSpan.Zero),
+            expense.GetProperty("occurredAt").GetDateTimeOffset());
+        Assert.Equal(
+            created.GetProperty("occurredAt").GetDateTimeOffset(),
+            expense.GetProperty("occurredAt").GetDateTimeOffset());
 
         using var wrongTripResponse = await client.GetAsync(
             $"/trips/{Guid.NewGuid()}/expenses/{expense.GetProperty("id").GetGuid()}");
         Assert.Equal(HttpStatusCode.NotFound, wrongTripResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteEndpointsRemoveExpenseParticipantAndTrip()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        var trip = new Trip("Trip");
+        var alice = trip.AddParticipant("Alice");
+        var bob = trip.AddParticipant("Bob");
+        var firstExpense = trip.AddEqualExpense(10m, "First", alice.Id, [bob.Id]);
+        var secondExpense = trip.AddEqualExpense(20m, "Second", alice.Id, [bob.Id]);
+        factory.Store.Add(trip);
+        using var client = factory.CreateClient();
+
+        using var expenseDelete = await client.DeleteAsync(
+            $"/trips/{trip.Id}/expenses/{firstExpense.Id}");
+        using var participantDelete = await client.DeleteAsync(
+            $"/trips/{trip.Id}/participants/{bob.Id}");
+        using var tripDelete = await client.DeleteAsync($"/trips/{trip.Id}");
+        using var getDeletedTrip = await client.GetAsync($"/trips/{trip.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, expenseDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, participantDelete.StatusCode);
+        Assert.DoesNotContain(trip.Expenses, expense => expense.Id == secondExpense.Id);
+        Assert.Equal(HttpStatusCode.NoContent, tripDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, getDeletedTrip.StatusCode);
     }
 
     [Theory]

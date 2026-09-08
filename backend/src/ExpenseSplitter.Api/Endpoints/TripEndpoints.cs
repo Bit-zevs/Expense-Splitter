@@ -1,4 +1,5 @@
 using ExpenseSplitter.Application.Trips.CreateTrip;
+using ExpenseSplitter.Application.Trips.DeleteTrip;
 using ExpenseSplitter.Application.Trips.GetTrip;
 
 namespace ExpenseSplitter.Api.Endpoints;
@@ -17,6 +18,12 @@ public static class TripEndpoints
             .WithName("GetTrip")
             .WithSummary("Gets a trip by ID")
             .Produces<GetTripResult>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        endpoints.MapDelete("/trips/{id:guid}", DeleteTripAsync)
+            .WithName("DeleteTrip")
+            .WithSummary("Deletes a trip and all its data")
+            .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound);
 
         return endpoints;
@@ -59,6 +66,16 @@ public static class TripEndpoints
         return result is null
             ? Results.NotFound()
             : Results.Ok(result);
+    }
+
+    private static async Task<IResult> DeleteTripAsync(
+        Guid id,
+        DeleteTripHandler handler,
+        CancellationToken cancellationToken)
+    {
+        return await handler.HandleAsync(id, cancellationToken)
+            ? Results.NoContent()
+            : Results.NotFound();
     }
 
     public sealed record CreateTripRequest(string? Name, string? Currency = null);

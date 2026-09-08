@@ -10,7 +10,7 @@ public sealed record ExpenseResult(
     string Description,
     Guid PaidByParticipantId,
     string SplitType,
-    DateTimeOffset CreatedAt,
+    DateTimeOffset OccurredAt,
     IReadOnlyCollection<ExpenseShareResult> Shares)
 {
     public static ExpenseResult FromExpense(Expense expense)
@@ -28,7 +28,7 @@ public sealed record ExpenseResult(
             expense.Description,
             expense.PaidByParticipantId,
             expense.SplitType.ToString().ToLowerInvariant(),
-            expense.CreatedAt,
+            expense.OccurredAt,
             shares);
     }
 }

@@ -63,6 +63,21 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
             .AsSingleQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
+    public Task<Trip?> FindWithExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) => dbContext.Trips
+            .Include(trip => trip.Expenses)
+            .AsSingleQuery()
+            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+
+    public Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) => dbContext.Trips
+            .Include(trip => trip.Participants)
+            .Include(trip => trip.Expenses)
+            .AsSplitQuery()
+            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+
     public Task<Participant?> FindParticipantByIdAsync(
         Guid tripId,
         Guid participantId,
@@ -84,6 +99,11 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
                 expense => expense.Id == expenseId
                     && EF.Property<Guid>(expense, "TripId") == tripId,
                 cancellationToken);
+
+    public void Remove(Trip trip)
+    {
+        dbContext.Trips.Remove(trip);
+    }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {

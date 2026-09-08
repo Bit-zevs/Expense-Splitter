@@ -30,6 +30,14 @@ internal abstract class TripStoreStub : ITripStore
         Guid id,
         CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public virtual Task<Trip?> FindWithExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public virtual Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public virtual Task<Participant?> FindParticipantByIdAsync(
         Guid tripId,
         Guid participantId,
@@ -39,6 +47,8 @@ internal abstract class TripStoreStub : ITripStore
         Guid tripId,
         Guid expenseId,
         CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public virtual void Remove(Trip trip) => throw new NotSupportedException();
 
     public virtual Task SaveChangesAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException();

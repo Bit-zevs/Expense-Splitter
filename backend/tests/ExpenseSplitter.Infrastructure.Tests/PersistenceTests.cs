@@ -51,7 +51,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
             Assert.Equal(expected.Description, actual.Description);
             Assert.Equal(expected.PaidByParticipantId, actual.PaidByParticipantId);
             Assert.Equal(expected.SplitType, actual.SplitType);
-            AssertTimestamp(expected.CreatedAt, actual.CreatedAt);
+            AssertTimestamp(expected.OccurredAt, actual.OccurredAt);
             Assert.Equal(
                 expected.Shares.OrderBy(share => share.ParticipantId).Select(share => (share.ParticipantId, share.Amount)),
                 actual.Shares.OrderBy(share => share.ParticipantId).Select(share => (share.ParticipantId, share.Amount)));

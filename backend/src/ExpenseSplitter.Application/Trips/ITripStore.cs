@@ -22,6 +22,14 @@ public interface ITripStore
         Guid id,
         CancellationToken cancellationToken);
 
+    Task<Trip?> FindWithExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
+    Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+        Guid id,
+        CancellationToken cancellationToken);
+
     Task<Participant?> FindParticipantByIdAsync(
         Guid tripId,
         Guid participantId,
@@ -31,6 +39,8 @@ public interface ITripStore
         Guid tripId,
         Guid expenseId,
         CancellationToken cancellationToken);
+
+    void Remove(Trip trip);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

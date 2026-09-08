@@ -8,7 +8,8 @@ Participants belong to a trip, record expenses, and receive a clear settlement p
 ## MVP
 
 - Create a group (trip/event) and add participants.
-- Record an expense with an amount, description, payer, selected participants, split type, and creation time.
+- Record an expense with an amount, description, payer, selected participants, split type, and manually selectable occurrence time.
+- Delete trips, participants, and expenses.
 - Support equal splitting between all or selected participants.
 - Calculate each participant's balance and propose a simplified settlement plan.
 

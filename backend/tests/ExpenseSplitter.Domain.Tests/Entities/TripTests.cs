@@ -65,14 +65,16 @@ public sealed class TripTests
     }
 
     [Fact]
-    public void ExpenseCreationTimeUsesDatabasePrecision()
+    public void ExpenseOccurrenceTimeUsesMinutePrecision()
     {
         var trip = new Trip("Trip");
         var participant = trip.AddParticipant("Alice");
 
         var expense = trip.AddEqualExpenseForAll(12.34m, "Coffee", participant.Id);
 
-        Assert.Equal(0, expense.CreatedAt.Ticks % 10);
+        Assert.Equal(0, expense.OccurredAt.Second);
+        Assert.Equal(0, expense.OccurredAt.Millisecond);
+        Assert.Equal(TimeSpan.Zero, expense.OccurredAt.Offset);
     }
 
     [Theory]
@@ -97,5 +99,49 @@ public sealed class TripTests
             () => ((IList<Participant>)trip.Participants).Clear());
         Assert.Throws<NotSupportedException>(
             () => ((IList<Expense>)trip.Expenses).Clear());
+    }
+
+    [Fact]
+    public void ExpenseOccurrenceTimeCanBeSetAndIsNormalizedToUtcMinute()
+    {
+        var trip = new Trip("Trip");
+        var participant = trip.AddParticipant("Alice");
+        var localTime = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
+
+        var expense = trip.AddEqualExpenseForAll(12.34m, "Coffee", participant.Id, localTime);
+
+        Assert.Equal(new DateTimeOffset(2026, 9, 8, 9, 37, 0, TimeSpan.Zero), expense.OccurredAt);
+    }
+
+    [Fact]
+    public void RemoveExpenseRemovesOnlyRequestedExpense()
+    {
+        var trip = new Trip("Trip");
+        var participant = trip.AddParticipant("Alice");
+        var removed = trip.AddEqualExpenseForAll(10m, "Removed", participant.Id);
+        var kept = trip.AddEqualExpenseForAll(20m, "Kept", participant.Id);
+
+        Assert.True(trip.RemoveExpense(removed.Id));
+
+        Assert.Equal(kept.Id, Assert.Single(trip.Expenses).Id);
+        Assert.False(trip.RemoveExpense(removed.Id));
+    }
+
+    [Fact]
+    public void RemoveParticipantAlsoRemovesExpensesInvolvingThem()
+    {
+        var trip = new Trip("Trip");
+        var alice = trip.AddParticipant("Alice");
+        var bob = trip.AddParticipant("Bob");
+        var charlie = trip.AddParticipant("Charlie");
+        trip.AddEqualExpense(10m, "Alice paid", alice.Id, [bob.Id]);
+        trip.AddEqualExpense(20m, "Bob share", charlie.Id, [bob.Id]);
+        var kept = trip.AddEqualExpense(30m, "Unrelated", charlie.Id, [alice.Id]);
+
+        Assert.True(trip.RemoveParticipant(bob.Id));
+
+        Assert.DoesNotContain(trip.Participants, participant => participant.Id == bob.Id);
+        Assert.Equal(kept.Id, Assert.Single(trip.Expenses).Id);
+        Assert.False(trip.RemoveParticipant(bob.Id));
     }
 }
