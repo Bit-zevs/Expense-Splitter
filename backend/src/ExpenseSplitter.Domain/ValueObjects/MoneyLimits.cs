@@ -2,6 +2,7 @@ namespace ExpenseSplitter.Domain.ValueObjects;
 
 public static class MoneyLimits
 {
+    // Persistence limit for a single expense/share, not for derived balances/transfers.
     public const decimal MaximumAmount = 792281625142643375935439503.35m;
 
     public static bool IsValidPositiveAmount(decimal amount) =>

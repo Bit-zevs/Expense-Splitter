@@ -10,6 +10,8 @@ test('preserves cents throughout the supported range', () => {
     assert.equal(shares.reduce((sum, share) => sum + toCents(share.amount), 0n), toCents(value));
   }
   assert.equal(fromCents(MAX_CENTS + MAX_CENTS), '1584563250285286751870879006.70');
+  assert.equal(toCents('1584563250285286751870879006.7'), MAX_CENTS * 2n);
+  assert.equal(formatMoney('1584563250285286751870879006.7', 'RUB').replaceAll('\u00a0', ''), '1584563250285286751870879006,70₽');
   assert.equal(formatMoney('90071992547409.91', 'RUB').replaceAll('\u00a0', ''), '90071992547409,91₽');
 });
 

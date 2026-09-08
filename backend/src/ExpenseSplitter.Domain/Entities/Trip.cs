@@ -123,7 +123,7 @@ public sealed class Trip
 
         _expenses.RemoveAll(expense =>
             expense.PaidByParticipantId == participantId
-            || expense.ParticipantIds.Contains(participantId));
+            || expense.Shares.Any(share => share.ParticipantId == participantId));
         _participants.Remove(participant);
         return true;
     }

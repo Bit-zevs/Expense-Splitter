@@ -38,6 +38,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
 
         await Assert.ThrowsAsync<ExpenseSplitter.Application.Trips.WriteConflictException>(
             () => writer.SaveChangesAsync(CancellationToken.None));
+        Assert.Null(write.Database.CurrentTransaction);
         await using var verify = new ExpenseSplitterDbContext(options);
         Assert.Empty(await verify.Expenses.ToListAsync());
         Assert.Equal(0, await CountSharesAsync(verify));
@@ -62,6 +63,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         await firstStore.SaveChangesAsync(CancellationToken.None);
         await Assert.ThrowsAsync<ExpenseSplitter.Application.Trips.WriteConflictException>(
             () => secondStore.SaveChangesAsync(CancellationToken.None));
+        Assert.Null(second.Database.CurrentTransaction);
     }
 
     [Fact]
@@ -267,8 +269,10 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         Assert.Empty(context.ChangeTracker.Entries());
     }
 
-    [Fact]
-    public async Task AggregateSplitQueryUsesOneSnapshotDuringConcurrentWrite()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AggregateSplitQueryUsesOneSnapshotDuringConcurrentWrite(bool forWrite)
     {
         var options = await database.CreateDatabaseAsync();
         var trip = new Trip("Concurrent trip");
@@ -284,9 +288,10 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
             .AddInterceptors(interceptor)
             .Options;
         await using var read = new ExpenseSplitterDbContext(readOptions);
-        var loadTask = new TripStore(read).FindWithParticipantsAndExpensesByIdAsync(
-            trip.Id,
-            CancellationToken.None);
+        var store = new TripStore(read);
+        var loadTask = forWrite
+            ? store.FindWithParticipantsAndExpensesTrackedAsync(trip.Id, CancellationToken.None)
+            : store.FindWithParticipantsAndExpensesByIdAsync(trip.Id, CancellationToken.None);
 
         await interceptor.ParticipantsLoaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
         try
@@ -314,6 +319,19 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         Assert.All(
             ParticipantBalanceCalculator.Calculate(loaded),
             balance => Assert.Equal(0, balance.Amount));
+        if (forWrite)
+        {
+            Assert.NotNull(read.Database.CurrentTransaction);
+            loaded.AddParticipant("Added after loading");
+            await store.SaveChangesAsync(CancellationToken.None);
+            Assert.Null(read.Database.CurrentTransaction);
+            await using var verify = new ExpenseSplitterDbContext(options);
+            Assert.Equal(3, await verify.Participants.CountAsync());
+        }
+        else
+        {
+            Assert.Null(read.Database.CurrentTransaction);
+        }
     }
 
     [Theory]

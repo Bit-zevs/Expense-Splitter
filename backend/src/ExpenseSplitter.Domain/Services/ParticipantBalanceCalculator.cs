@@ -18,13 +18,9 @@ public static class ParticipantBalanceCalculator
             ApplyExpense(expense, balancesByParticipantId);
         }
 
-        var maximumCents = new BigInteger(MoneyLimits.MaximumAmount * 100m);
         foreach (var balance in balances)
         {
-            var cents = balancesByParticipantId[balance.ParticipantId];
-            if (BigInteger.Abs(cents) > maximumCents)
-                throw new OverflowException("The final balance exceeds the exact monetary range.");
-            balance.Amount = (decimal)cents / 100m;
+            balance.Amount = MoneyCents.ToDecimalExact(balancesByParticipantId[balance.ParticipantId]);
         }
         return balances.AsReadOnly();
     }
@@ -54,12 +50,12 @@ public static class ParticipantBalanceCalculator
     {
         if (!balances.ContainsKey(expense.PaidByParticipantId))
             throw new InvalidOperationException("An expense payer does not belong to the trip.");
-        balances[expense.PaidByParticipantId] += new BigInteger(expense.Amount * 100m);
+        balances[expense.PaidByParticipantId] += MoneyCents.FromDecimal(expense.Amount);
         foreach (var share in expense.Shares)
         {
             if (!balances.ContainsKey(share.ParticipantId))
                 throw new InvalidOperationException("An expense share participant does not belong to the trip.");
-            balances[share.ParticipantId] -= new BigInteger(share.Amount * 100m);
+            balances[share.ParticipantId] -= MoneyCents.FromDecimal(share.Amount);
         }
     }
 }

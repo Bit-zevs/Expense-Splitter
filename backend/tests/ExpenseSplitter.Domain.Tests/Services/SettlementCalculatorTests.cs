@@ -114,16 +114,55 @@ public sealed class SettlementCalculatorTests
         Assert.Equal(payer.Id, transfer.ToParticipantId);
     }
 
-    [Fact]
-    public void RejectsAccumulatedBalanceOutsideExactCentRange()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(10)]
+    [InlineData(100)]
+    public void SupportsExactDerivedValuesAboveSingleExpenseLimit(int expenseCount)
     {
         var trip = new Trip("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First expense", payer.Id, new[] { debtor.Id });
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second expense", payer.Id, new[] { debtor.Id });
+        for (var index = 0; index < expenseCount; index++)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
+
+        var expected = MoneyLimits.MaximumAmount * expenseCount;
+        var balances = ParticipantBalanceCalculator.Calculate(trip);
+        Assert.Equal(expected, balances.Single(b => b.ParticipantId == payer.Id).Amount);
+        Assert.Equal(-expected, balances.Single(b => b.ParticipantId == debtor.Id).Amount);
+        Assert.Equal(expected, Assert.Single(SettlementCalculator.Calculate(trip)).Amount);
+    }
+
+    [Theory]
+    [InlineData(3)] // Within decimal's magnitude, but the exact cents cannot be represented.
+    [InlineData(101)] // Exceeds decimal.MaxValue itself.
+    public void RejectsDerivedValuesThatDecimalCannotRepresentExactly(int expenseCount)
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        for (var index = 0; index < expenseCount; index++)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
         Assert.Throws<OverflowException>(() => SettlementCalculator.Calculate(trip));
+    }
+
+    [Fact]
+    public void SettlementKeepsExactCentsInIntermediateRemaindersAboveExpenseLimit()
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        for (var index = 0; index < 100; index++)
+        {
+            var debtor = trip.AddParticipant($"Debtor {index}");
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
+        }
+
+        var balances = ParticipantBalanceCalculator.Calculate(trip);
+        Assert.Equal(decimal.MaxValue, balances.Single(b => b.ParticipantId == payer.Id).Amount);
+        var transfers = SettlementCalculator.CalculateFromBalances(balances);
+        Assert.Equal(100, transfers.Count);
+        Assert.All(transfers, transfer => Assert.Equal(MoneyLimits.MaximumAmount, transfer.Amount));
     }
 
     [Theory]

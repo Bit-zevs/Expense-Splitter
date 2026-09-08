@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 
 const appElement = { innerHTML: '' };
 const elements = new Map();
+const selectorElements = new Map();
 let checkedParticipants = [];
 globalThis.document = {
   getElementById: id => id === 'app' ? appElement : elements.get(id),
   querySelector: () => null,
-  querySelectorAll: selector => selector === 'input[name="split-participant"]:checked' ? checkedParticipants : [],
+  querySelectorAll: selector => selector === 'input[name="split-participant"]:checked' ? checkedParticipants : selectorElements.get(selector) || [],
 };
 globalThis.location = { hash: '#/' };
 globalThis.window = { addEventListener() {}, setTimeout() {} };
@@ -84,7 +85,13 @@ test('successful participant POST remains saved when calculation refresh fails',
   elements.clear();
 });
 
-test('expense submit sends exact money and retains 201 result after refresh failure', async () => {
+test('expense submit serializes local time to UTC, sends exact money and retains 201 result after refresh failure', async t => {
+  const originalTimezone = process.env.TZ;
+  process.env.TZ = 'Asia/Yekaterinburg';
+  t.after(() => {
+    if (originalTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimezone;
+  });
   let submit;
   const form = { addEventListener: (_, handler) => { submit = handler; }, setAttribute() {}, querySelector: () => null };
   elements.set('expense-form', form);
@@ -97,6 +104,7 @@ test('expense submit sends exact money and retains 201 result after refresh fail
     if (options.method === 'POST') {
       const request = JSON.parse(options.body);
       assert.equal(request.amount, '792281625142643375935439503.35');
+      assert.equal(request.occurredAt, '2026-09-08T07:00:00.000Z');
       return ok({ ...request, id: 'new-expense', shares: [{ participantId: 'q', amount: request.amount }] });
     }
     return url.endsWith('/settlements') ? { ok: false, status: 422, json: async () => ({ title: 'Overflow' }) } : data(url);
@@ -153,4 +161,41 @@ test('older calculation refresh cannot overwrite a newer result', async () => {
   release();
   await old;
   assert.equal(getState().settlement.balances[0].balance, '2.00');
+});
+
+test('deleting participant removes payer and share expenses even when refresh fails', async () => {
+  let clickDelete;
+  let submit;
+  selectorElements.set('[data-delete-participant]', [{
+    dataset: { deleteParticipant: 'q' }, addEventListener: (_, handler) => { clickDelete = handler; },
+  }]);
+  const form = { addEventListener: (_, handler) => { submit = handler; }, setAttribute() {}, querySelector: () => null };
+  elements.set('delete-form', form);
+  const expense = (id, payer, participantId) => ({
+    id, description: id, amount: '1.00', occurredAt: '2026-09-08',
+    paidByParticipantId: payer, shares: [{ participantId, amount: '1.00' }],
+  });
+  respond = (url, options) => {
+    if (options.method === 'DELETE') return { ok: true, status: 204 };
+    if (url.endsWith('/expenses')) return ok([
+      expense('share', 'p', 'q'), expense('payer', 'q', 'p'), expense('keep', 'p', 'p'),
+    ]);
+    if (url.endsWith('/settlements')) return { ok: false, status: 422, json: async () => ({ title: 'Overflow' }) };
+    return data(url);
+  };
+  location.hash = `#/trip/${a}`;
+  await handleRouteChange();
+  clickDelete();
+  calls.length = 0;
+  await submit({ preventDefault() {}, currentTarget: form });
+  assert.deepEqual(getState().participants.map(p => p.id), ['p']);
+  assert.deepEqual(getState().expenses.map(e => e.id), ['keep']);
+  assert.equal(getState().pendingDeletion, null);
+  assert.equal(getState().modal, null);
+  assert.match(getState().toast, /удалён.*Не удалось обновить/);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][1].method, 'DELETE');
+  assert.ok(calls[0][0].endsWith(`/trips/${a}/participants/q`));
+  elements.clear();
+  selectorElements.clear();
 });

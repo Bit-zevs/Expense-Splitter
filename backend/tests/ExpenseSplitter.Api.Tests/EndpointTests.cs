@@ -422,15 +422,17 @@ public sealed class EndpointTests
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
-    [Fact]
-    public async Task CalculationOutsideDecimalRangeReturnsUnprocessableEntity()
+    [Theory]
+    [InlineData(3)]
+    [InlineData(101)]
+    public async Task CalculationNotExactlyRepresentableAsDecimalReturnsUnprocessableEntity(int expenseCount)
     {
         await using var factory = new ExpenseSplitterApiFactory();
         var trip = new Trip("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, new[] { debtor.Id });
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, new[] { debtor.Id });
+        for (var index = 0; index < expenseCount; index++)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
@@ -442,5 +444,25 @@ public sealed class EndpointTests
         Assert.Equal("application/problem+json", balanceResponse.Content.Headers.ContentType?.MediaType);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task DerivedMoneyAboveExpenseLimitReturnsExactStrings()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        var trip = new Trip("Large trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, [debtor.Id]);
+        factory.Store.Add(trip);
+        using var client = factory.CreateClient();
+
+        var balances = await client.GetFromJsonAsync<JsonElement>($"/trips/{trip.Id}/balances");
+        var settlement = await client.GetFromJsonAsync<JsonElement>($"/trips/{trip.Id}/settlements");
+        Assert.Equal("1584563250285286751870879006.7", balances.EnumerateArray()
+            .Single(b => b.GetProperty("participantId").GetGuid() == payer.Id).GetProperty("amount").GetString());
+        Assert.Equal("1584563250285286751870879006.7",
+            settlement.GetProperty("transfers")[0].GetProperty("amount").GetString());
     }
 }

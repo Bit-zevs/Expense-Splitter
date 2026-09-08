@@ -1,3 +1,4 @@
+using System.Numerics;
 using ExpenseSplitter.Domain.Entities;
 using ExpenseSplitter.Domain.ValueObjects;
 
@@ -33,11 +34,11 @@ public static class SettlementCalculator
         {
             var creditor = creditors[creditorIndex];
             var debtor = debtors[debtorIndex];
-            var transferAmount = Math.Min(-debtor.Amount, creditor.Amount);
+            var transferAmount = BigInteger.Min(-debtor.Amount, creditor.Amount);
             transfers.Add(new SettlementTransfer(
                 debtor.ParticipantId,
                 creditor.ParticipantId,
-                transferAmount));
+                MoneyCents.ToDecimalExact(transferAmount)));
 
             debtor.Amount += transferAmount;
             creditor.Amount -= transferAmount;
@@ -62,13 +63,13 @@ public static class SettlementCalculator
         return transfers.AsReadOnly();
     }
 
-    private sealed class BalancePosition(Guid participantId, decimal amount)
+    private sealed class BalancePosition(Guid participantId, BigInteger amount)
     {
         public Guid ParticipantId { get; } = participantId;
 
-        public decimal Amount { get; set; } = amount;
+        public BigInteger Amount { get; set; } = amount;
 
         public static BalancePosition FromBalance(ParticipantBalance balance) =>
-            new(balance.ParticipantId, balance.Amount);
+            new(balance.ParticipantId, MoneyCents.FromDecimal(balance.Amount));
     }
 }

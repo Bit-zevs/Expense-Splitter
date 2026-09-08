@@ -18,8 +18,11 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
             .AsNoTracking()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
-    public Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Trips.SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+    public async Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await BeginWriteAsync(cancellationToken);
+        return await dbContext.Trips.SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+    }
 
     public Task<Trip?> FindWithParticipantsByIdAsync(
         Guid id,
@@ -56,27 +59,47 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
         return trip;
     }
 
-    public Task<Trip?> FindWithParticipantsTrackedAsync(
+    public async Task<Trip?> FindWithParticipantsTrackedAsync(
         Guid id,
-        CancellationToken cancellationToken) => dbContext.Trips
+        CancellationToken cancellationToken)
+    {
+        await BeginWriteAsync(cancellationToken);
+        return await dbContext.Trips
             .Include(trip => trip.Participants)
             .AsSingleQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+    }
 
-    public Task<Trip?> FindWithExpensesTrackedAsync(
+    public async Task<Trip?> FindWithExpensesTrackedAsync(
         Guid id,
-        CancellationToken cancellationToken) => dbContext.Trips
+        CancellationToken cancellationToken)
+    {
+        await BeginWriteAsync(cancellationToken);
+        return await dbContext.Trips
             .Include(trip => trip.Expenses)
             .AsSingleQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+    }
 
-    public Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
+    public async Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
         Guid id,
-        CancellationToken cancellationToken) => dbContext.Trips
+        CancellationToken cancellationToken)
+    {
+        await BeginWriteAsync(cancellationToken);
+        return await dbContext.Trips
             .Include(trip => trip.Participants)
             .Include(trip => trip.Expenses)
             .AsSplitQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+    }
+
+    private async Task BeginWriteAsync(CancellationToken cancellationToken)
+    {
+        // The scoped DbContext rolls back if validation/not-found returns without saving.
+        // Keep one snapshot through load, aggregate mutation, save and commit.
+        if (dbContext.Database.CurrentTransaction is null)
+            await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+    }
 
     public Task<Participant?> FindParticipantByIdAsync(
         Guid tripId,
@@ -107,25 +130,33 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
+        var transaction = dbContext.Database.CurrentTransaction;
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+                await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateConcurrencyException exception)
+        catch (Exception exception) when (IsWriteConflict(exception))
         {
             throw new WriteConflictException(exception);
         }
-        catch (DbUpdateException exception) when (exception.InnerException is PostgresException postgres && IsWriteConflict(postgres))
+        finally
         {
-            throw new WriteConflictException(exception);
-        }
-        // Deferred foreign keys are checked at commit, outside EF's update wrapper.
-        catch (PostgresException exception) when (IsWriteConflict(exception))
-        {
-            throw new WriteConflictException(exception);
+            if (transaction is not null)
+                await transaction.DisposeAsync();
         }
     }
 
-    private static bool IsWriteConflict(PostgresException exception) => exception.SqlState is
-        PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected;
+    // Commit-time FK failures are unwrapped; Npgsql may wrap serialization failures
+    // in InvalidOperationException -> DbUpdateException -> PostgresException.
+    private static bool IsWriteConflict(Exception exception) => exception switch
+    {
+        DbUpdateConcurrencyException => true,
+        PostgresException postgres => postgres.SqlState is
+            PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
+        DbUpdateException or InvalidOperationException when exception.InnerException is not null =>
+            IsWriteConflict(exception.InnerException),
+        _ => false
+    };
 }

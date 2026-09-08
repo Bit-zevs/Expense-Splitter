@@ -42,7 +42,8 @@ For other environments, configure `ConnectionStrings__ExpenseSplitter` externall
 Migrations are applied explicitly, not automatically when the API starts.
 Money uses `decimal` in backend contracts and `numeric(29,2)` in PostgreSQL.
 JSON monetary values are strings; the frontend calculates integer cents with `BigInt`.
-The balance calculator also accumulates integer cents internally and checks the final range.
+The calculators also accumulate integer cents internally. Derived balances and transfers may
+exceed the single-expense limit when exactly representable as `decimal`, without rounding.
 The upper bound `792281625142643375935439503.35` guarantees exact cent arithmetic
 and reliable PostgreSQL round-trips.
 See [persistence design and usage](docs/persistence.md) for relationships, delete rules,
