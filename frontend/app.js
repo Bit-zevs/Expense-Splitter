@@ -1,19 +1,9 @@
 import { createApi } from './api.js';
+import { toCents, fromCents, parseAmount, formatMoney, splitIntoShares } from './money.js';
 
 const DEMO_TRIP_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5050').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5050').replace(/\/$/, '');
 const api = createApi(API_BASE_URL);
-
-function splitIntoShares(amount, participantIds) {
-  const totalCents = Math.round(Number(amount) * 100);
-  const base = Math.floor(totalCents / participantIds.length);
-  let remainder = totalCents - base * participantIds.length;
-
-  return participantIds.map(participantId => {
-    const cents = base + (remainder-- > 0 ? 1 : 0);
-    return { participantId, amount: cents / 100 };
-  });
-}
 
 function createDemoState() {
   const p1 = '6f9619ff-8b86-d011-b42d-00cf4fc964ff';
@@ -74,12 +64,7 @@ let state = {
 const app = document.getElementById('app');
 
 function money(value) {
-  return new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: state.trip.currency || 'RUB',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return formatMoney(value, state.trip.currency || 'RUB');
 }
 
 function dateLabel(value) {
@@ -261,7 +246,7 @@ function tabContent() {
 }
 
 function expensesTab() {
-  const total = state.expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const total = state.expenses.reduce((sum, expense) => sum + toCents(expense.amount), 0n);
 
   if (!state.participants.length) {
     return emptyState('Сначала добавьте участников', 'Расход должен ссылаться на плательщика и хотя бы одного участника поездки.', 'participant', 'Добавить участника');
@@ -273,7 +258,7 @@ function expensesTab() {
 
   return `
     <div class="content-summary">
-      <div><span>Всего расходов</span><strong>${money(total)}</strong></div>
+      <div><span>Всего расходов</span><strong>${money(fromCents(total))}</strong></div>
       <div><span>Записей</span><strong>${state.expenses.length}</strong></div>
     </div>
     <div class="expense-list">
@@ -309,12 +294,12 @@ function participantsTab() {
       ${state.participants.map((participant, index) => {
         const paid = state.expenses
           .filter(expense => expense.paidByParticipantId === participant.id)
-          .reduce((sum, expense) => sum + Number(expense.amount), 0);
+          .reduce((sum, expense) => sum + toCents(expense.amount), 0n);
         return `
           <div class="person-row">
             <div class="avatar">${escapeHtml(participant.name.slice(0, 1).toUpperCase())}</div>
             <div class="person-main"><strong>${escapeHtml(participant.name)}</strong><span>Участник ${index + 1}</span></div>
-            <div class="person-meta"><span>Оплатил</span><strong>${money(paid)}</strong></div>
+            <div class="person-meta"><span>Оплатил</span><strong>${money(fromCents(paid))}</strong></div>
             <button class="icon-btn icon-btn-danger" type="button" data-delete-participant="${participant.id}" aria-label="Удалить участника ${escapeHtml(participant.name)}">${icon('trash', 17)}</button>
           </div>`;
       }).join('')}
@@ -322,6 +307,7 @@ function participantsTab() {
 }
 
 function resultsTab() {
+  if (state.calculationError) return `<div role="alert">Расчёт недоступен: ${escapeHtml(state.calculationError)}. Участники и расходы доступны; можно удалить расход и повторить расчёт. <button class="btn btn-outline" data-retry-calculation>Повторить расчёт</button></div>`;
   if (!state.expenses.length) {
     return `
       <div class="results-empty">
@@ -335,13 +321,13 @@ function resultsTab() {
   const { balances, transfers } = state.isDemo
     ? calculateSettlement()
     : state.settlement;
-  const total = state.expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const total = state.expenses.reduce((sum, expense) => sum + toCents(expense.amount), 0n);
 
   return `
     <div class="results-hero">
       <div>
         <span>Общие расходы</span>
-        <strong>${money(total)}</strong>
+        <strong>${money(fromCents(total))}</strong>
       </div>
       <p>Положительный баланс — участнику должны вернуть деньги. Отрицательный — участник должен доплатить.</p>
     </div>
@@ -352,12 +338,12 @@ function resultsTab() {
         <div class="balance-list">
           ${balances.map(item => {
             const participant = participantById(item.participantId);
-            const positive = item.balance >= 0;
+            const positive = toCents(item.balance) >= 0n;
             return `
               <div class="balance-row">
                 <div class="avatar small">${escapeHtml(participant?.name?.[0] || '?')}</div>
                 <div class="balance-main"><strong>${escapeHtml(participant?.name || 'Участник')}</strong><span>${positive ? 'должен получить' : 'должен заплатить'}</span></div>
-                <div class="balance-value ${positive ? 'positive' : 'negative'}">${positive && item.balance !== 0 ? '+' : ''}${money(item.balance)}</div>
+                <div class="balance-value ${positive ? 'positive' : 'negative'}">${positive && toCents(item.balance) !== 0n ? '+' : ''}${money(item.balance)}</div>
               </div>`;
           }).join('')}
         </div>
@@ -440,7 +426,7 @@ function expenseModal() {
             </div>
             <div class="field">
               <label for="expense-amount">Сумма</label>
-              <div class="amount-input"><input class="input" id="expense-amount" required min="0.01" step="0.01" type="number" inputmode="decimal" placeholder="0.00" /><span>${escapeHtml(currencySymbol())}</span></div>
+              <div class="amount-input"><input class="input" id="expense-amount" required type="text" inputmode="decimal" placeholder="0.00" /><span>${escapeHtml(currencySymbol())}</span></div>
             </div>
             <div class="field">
               <label for="expense-payer">Кто оплатил</label>
@@ -554,34 +540,34 @@ function participantById(id) {
 }
 
 function calculateSettlement() {
-  const balanceMap = new Map(state.participants.map(participant => [participant.id, 0]));
+  const balanceMap = new Map(state.participants.map(participant => [participant.id, 0n]));
 
   for (const expense of state.expenses) {
     balanceMap.set(
       expense.paidByParticipantId,
-      (balanceMap.get(expense.paidByParticipantId) || 0) + Math.round(Number(expense.amount) * 100),
+      (balanceMap.get(expense.paidByParticipantId) || 0n) + toCents(expense.amount),
     );
     for (const share of expense.shares) {
       balanceMap.set(
         share.participantId,
-        (balanceMap.get(share.participantId) || 0) - Math.round(Number(share.amount) * 100),
+        (balanceMap.get(share.participantId) || 0n) - toCents(share.amount),
       );
     }
   }
 
   const balances = state.participants.map(participant => ({
     participantId: participant.id,
-    balance: (balanceMap.get(participant.id) || 0) / 100,
+    balance: fromCents(balanceMap.get(participant.id) || 0n),
   }));
 
   const debtors = balances
-    .filter(item => item.balance < 0)
-    .map(item => ({ ...item, cents: Math.round(-item.balance * 100) }))
-    .sort((a, b) => b.cents - a.cents);
+    .filter(item => toCents(item.balance) < 0n)
+    .map(item => ({ ...item, cents: -toCents(item.balance) }))
+    .sort((a, b) => a.cents === b.cents ? 0 : a.cents > b.cents ? -1 : 1);
   const creditors = balances
-    .filter(item => item.balance > 0)
-    .map(item => ({ ...item, cents: Math.round(item.balance * 100) }))
-    .sort((a, b) => b.cents - a.cents);
+    .filter(item => toCents(item.balance) > 0n)
+    .map(item => ({ ...item, cents: toCents(item.balance) }))
+    .sort((a, b) => a.cents === b.cents ? 0 : a.cents > b.cents ? -1 : 1);
 
   const transfers = [];
   let debtorIndex = 0;
@@ -590,20 +576,20 @@ function calculateSettlement() {
   while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
     const debtor = debtors[debtorIndex];
     const creditor = creditors[creditorIndex];
-    const cents = Math.min(debtor.cents, creditor.cents);
+    const cents = debtor.cents < creditor.cents ? debtor.cents : creditor.cents;
 
     if (cents > 0) {
       transfers.push({
         fromParticipantId: debtor.participantId,
         toParticipantId: creditor.participantId,
-        amount: cents / 100,
+        amount: fromCents(cents),
       });
     }
 
     debtor.cents -= cents;
     creditor.cents -= cents;
-    if (debtor.cents === 0) debtorIndex += 1;
-    if (creditor.cents === 0) creditorIndex += 1;
+    if (debtor.cents === 0n) debtorIndex += 1;
+    if (creditor.cents === 0n) creditorIndex += 1;
   }
 
   return { balances, transfers };
@@ -644,67 +630,87 @@ function currentRoute() {
 function render() {
   const route = currentRoute();
   if (route === '/create') app.innerHTML = createTrip();
-  else if (route.startsWith('/trip/') && state.trip) app.innerHTML = tripPage();
+  else if (routeTripId() && state.trip?.id.toLowerCase() === routeTripId()) app.innerHTML = tripPage();
   else app.innerHTML = home();
   bind();
 }
 
-async function loadTrip(tripId, activeTab = 'expenses') {
-  const [trip, participants, expenses, balances, settlements] = await Promise.all([
-    api.getTrip(tripId),
-    api.getParticipants(tripId),
-    api.getExpenses(tripId),
-    api.getBalances(tripId),
-    api.getSettlements(tripId),
-  ]);
+let loadVersion = 0;
+let calculationVersion = 0;
 
-  state = {
-    trip,
-    participants,
-    expenses,
-    settlement: {
-      balances: balances.map(balance => ({
-        participantId: balance.participantId,
-        balance: balance.amount,
-      })),
-      transfers: settlements.transfers,
-    },
-    activeTab,
-    modal: null,
-    selectedExpenseId: null,
-    pendingDeletion: null,
-    toast: null,
-    isDemo: false,
-  };
+function routeTripId() {
+  return /^\/trip\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(currentRoute())?.[1].toLowerCase() || null;
 }
 
-async function refreshTrip(toast = null) {
-  const { id } = state.trip;
-  const { activeTab } = state;
-  await loadTrip(id, activeTab);
-  state.toast = toast;
+function mutationIsCurrent(tripId, version) {
+  return version === loadVersion && routeTripId() === tripId.toLowerCase() && state.trip?.id === tripId;
+}
+
+async function loadTrip(tripId, activeTab = 'expenses') {
+  const version = ++loadVersion;
+  const [trip, participants, expenses, calculation] = await Promise.all([
+    api.getTrip(tripId), api.getParticipants(tripId), api.getExpenses(tripId),
+    api.getSettlements(tripId).then(value => ({ value }), error => ({ error })),
+  ]);
+  if (version !== loadVersion || routeTripId() !== tripId.toLowerCase()) return false;
+  state = {
+    trip, participants, expenses,
+    settlement: calculation.value || { balances: [], transfers: [] },
+    calculationError: calculation.error ? getErrorMessage(calculation.error) : null,
+    activeTab, modal: null, selectedExpenseId: null, pendingDeletion: null, toast: null, isDemo: false,
+  };
+  return true;
+}
+
+async function refreshCalculation(message = null) {
+  const tripId = state.trip.id;
+  const version = loadVersion;
+  const calculation = ++calculationVersion;
+  state.modal = null;
+  state.pendingDeletion = null;
+  state.selectedExpenseId = null;
+  state.toast = message;
+  state.calculationError = 'Обновляется';
   render();
-  if (toast) clearToastLater();
+  if (state.isDemo) {
+    state.settlement = calculateSettlement();
+    state.calculationError = null;
+    render();
+    clearToastLater();
+    return;
+  }
+  try {
+    const result = await api.getSettlements(tripId);
+    if (!mutationIsCurrent(tripId, version) || calculation !== calculationVersion) return;
+    state.settlement = result;
+    state.calculationError = null;
+  } catch (error) {
+    if (!mutationIsCurrent(tripId, version) || calculation !== calculationVersion) return;
+    state.calculationError = getErrorMessage(error);
+    state.toast = message ? `${message}. Не удалось обновить расчёт.` : 'Не удалось обновить расчёт.';
+  }
+  render();
+  clearToastLater();
 }
 
 async function handleRouteChange() {
-  const route = currentRoute();
-  const tripId = route.startsWith('/trip/') ? parseTripId(route) : null;
-
-  if (!tripId || state.trip?.id === tripId) {
-    render();
-    return;
-  }
-
+  const tripId = routeTripId();
+  ++loadVersion;
+  if (!tripId || (state.isDemo && tripId === DEMO_TRIP_ID)) { render(); return; }
+  const activeTab = state.trip?.id === tripId ? state.activeTab : 'expenses';
+  state.trip = null;
+  app.innerHTML = `${header()}<main class="container"><p role="status">Загрузка поездки…</p></main>`;
+  const version = loadVersion + 1;
   try {
-    await loadTrip(tripId);
-    render();
-  } catch {
-    location.hash = '#/';
+    if (await loadTrip(tripId, activeTab)) render();
+  } catch (error) {
+    if (loadVersion !== version || routeTripId() !== tripId) return;
+    app.innerHTML = `${header()}<main class="container"><p role="alert">${escapeHtml(getErrorMessage(error))}</p><a href="#/">На главную</a></main>`;
   }
 }
 
 function bind() {
+  document.querySelector('[data-retry-calculation]')?.addEventListener('click', () => refreshCalculation());
   document.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click', () => {
     state.activeTab = button.dataset.tab;
     state.modal = null;
@@ -731,21 +737,12 @@ function bind() {
     if (expense) openDeleteConfirmation('expense', expense.id, expense.description);
   });
 
-  document.querySelectorAll('[data-expense-id]').forEach(button => button.addEventListener('click', async () => {
-    try {
-      const expense = state.isDemo
-        ? state.expenses.find(item => item.id === button.dataset.expenseId)
-        : await api.getExpense(state.trip.id, button.dataset.expenseId);
-      const index = state.expenses.findIndex(item => item.id === expense.id);
-      if (index >= 0) state.expenses[index] = expense;
-      state.selectedExpenseId = expense.id;
-      state.modal = 'expense-detail';
-      render();
-    } catch (error) {
-      state.toast = error.message;
-      render();
-      clearToastLater();
-    }
+  document.querySelectorAll('[data-expense-id]').forEach(button => button.addEventListener('click', () => {
+    const expense = state.expenses.find(item => item.id === button.dataset.expenseId);
+    if (!expense) return;
+    state.selectedExpenseId = expense.id;
+    state.modal = 'expense-detail';
+    render();
   }));
 
   document.querySelectorAll('[data-close="modal"]').forEach(element => element.addEventListener('click', event => {
@@ -765,9 +762,8 @@ function bind() {
     location.hash = `#/trip/${state.trip.id}`;
   });
 
-  document.getElementById('open-trip-form')?.addEventListener('submit', async event => {
+  document.getElementById('open-trip-form')?.addEventListener('submit', event => {
     event.preventDefault();
-    const form = event.currentTarget;
     const input = document.getElementById('trip-id');
     const tripId = parseTripId(input.value);
     if (!tripId) {
@@ -775,18 +771,7 @@ function bind() {
       return;
     }
 
-    setFormPending(form, true);
-    try {
-      await loadTrip(tripId);
-      location.hash = `#/trip/${tripId}`;
-    } catch (error) {
-      showInlineError(
-        input,
-        error.status === 404 ? 'Поездка с таким ID не найдена.' : getErrorMessage(error),
-      );
-    } finally {
-      setFormPending(form, false);
-    }
+    location.hash = `#/trip/${tripId}`;
   });
 
   document.getElementById('create-trip-form')?.addEventListener('submit', async event => {
@@ -796,9 +781,11 @@ function bind() {
     const currency = document.getElementById('trip-currency').value;
     if (!name) return;
 
+    const version = loadVersion;
     setFormPending(form, true);
     try {
       const trip = await api.createTrip(name, currency);
+      if (version !== loadVersion || currentRoute() !== '/create') return;
       state = {
         trip,
         participants: [],
@@ -826,11 +813,14 @@ function bind() {
     const name = input.value.trim();
     if (!name) return;
 
+    const tripId = state.trip.id;
+    const version = loadVersion;
     setFormPending(form, true);
     try {
-      const participant = await api.addParticipant(state.trip.id, name);
-      await api.getParticipant(state.trip.id, participant.id);
-      await refreshTrip(`${name} добавлен в поездку`);
+      const participant = state.isDemo ? { id: crypto.randomUUID(), name } : await api.addParticipant(tripId, name);
+      if (!mutationIsCurrent(tripId, version)) return;
+      state.participants.push(participant);
+      await refreshCalculation(`${name} добавлен в поездку`);
     } catch (error) {
       showInlineError(input, getErrorMessage(error));
     } finally {
@@ -842,30 +832,38 @@ function bind() {
     event.preventDefault();
     const form = event.currentTarget;
     const description = document.getElementById('expense-description').value.trim();
-    const amount = Number(document.getElementById('expense-amount').value);
+    let amount;
+    try { amount = parseAmount(document.getElementById('expense-amount').value); }
+    catch (error) { showFormError(form, error.message); return; }
     const paidByParticipantId = document.getElementById('expense-payer').value;
     const occurredAtInput = document.getElementById('expense-occurred-at');
     const occurredAt = new Date(occurredAtInput.value);
     const participantIds = [...document.querySelectorAll('input[name="split-participant"]:checked')].map(input => input.value);
 
-    if (!description || !Number.isFinite(amount) || amount <= 0 || Number.isNaN(occurredAt.getTime())) return;
+    if (!description || Number.isNaN(occurredAt.getTime())) return;
     if (!participantIds.length) {
       const list = document.querySelector('.check-list');
       list?.classList.add('invalid');
       return;
     }
 
+    const tripId = state.trip.id;
+    const version = loadVersion;
     setFormPending(form, true);
     try {
-      const expense = await api.addExpense(state.trip.id, {
+      const request = {
         amount,
         description,
         paidByParticipantId,
         participantIds,
         occurredAt: occurredAt.toISOString(),
-      });
-      await api.getExpense(state.trip.id, expense.id);
-      await refreshTrip('Расход добавлен');
+      };
+      const expense = state.isDemo
+        ? { ...request, id: crypto.randomUUID(), splitType: 'equal', shares: splitIntoShares(amount, participantIds) }
+        : await api.addExpense(tripId, request);
+      if (!mutationIsCurrent(tripId, version)) return;
+      state.expenses.push(expense);
+      await refreshCalculation('Расход добавлен');
     } catch (error) {
       showFormError(form, getErrorMessage(error));
     } finally {
@@ -909,18 +907,21 @@ async function handleDelete(event) {
   const deletion = state.pendingDeletion;
   if (!deletion) return;
 
+  const tripId = state.trip.id;
+  const version = loadVersion;
   setFormPending(form, true);
   try {
     if (state.isDemo) {
       deleteFromDemo(deletion);
     } else if (deletion.type === 'expense') {
-      await api.deleteExpense(state.trip.id, deletion.id);
+      await api.deleteExpense(tripId, deletion.id);
     } else if (deletion.type === 'participant') {
-      await api.deleteParticipant(state.trip.id, deletion.id);
+      await api.deleteParticipant(tripId, deletion.id);
     } else {
-      await api.deleteTrip(state.trip.id);
+      await api.deleteTrip(tripId);
     }
 
+    if (!mutationIsCurrent(tripId, version)) return;
     if (deletion.type === 'trip') {
       state = {
         trip: null,
@@ -952,7 +953,8 @@ async function handleDelete(event) {
       render();
       clearToastLater();
     } else {
-      await refreshTrip(message);
+      deleteFromDemo(deletion);
+      await refreshCalculation(message);
     }
   } catch (error) {
     showFormError(form, getErrorMessage(error));
@@ -1021,3 +1023,6 @@ function clearToastLater() {
 
 window.addEventListener('hashchange', handleRouteChange);
 handleRouteChange();
+
+export { loadTrip, handleRouteChange, calculateSettlement, refreshCalculation };
+export const getState = () => state;

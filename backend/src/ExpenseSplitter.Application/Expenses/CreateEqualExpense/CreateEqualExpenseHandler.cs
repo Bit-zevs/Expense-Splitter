@@ -20,7 +20,7 @@ public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
         ArgumentNullException.ThrowIfNull(command);
         ValidateCommand(command);
 
-        var trip = await tripStore.FindWithParticipantsForUpdateAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindWithParticipantsTrackedAsync(tripId, cancellationToken);
         if (trip is null)
         {
             return null;

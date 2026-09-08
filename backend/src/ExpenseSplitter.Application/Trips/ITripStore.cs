@@ -8,7 +8,7 @@ public interface ITripStore
 
     Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken);
+    Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken);
 
     Task<Trip?> FindWithParticipantsByIdAsync(Guid id, CancellationToken cancellationToken);
 
@@ -18,15 +18,15 @@ public interface ITripStore
         Guid id,
         CancellationToken cancellationToken);
 
-    Task<Trip?> FindWithParticipantsForUpdateAsync(
+    Task<Trip?> FindWithParticipantsTrackedAsync(
         Guid id,
         CancellationToken cancellationToken);
 
-    Task<Trip?> FindWithExpensesForUpdateAsync(
+    Task<Trip?> FindWithExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken);
 
-    Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+    Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken);
 

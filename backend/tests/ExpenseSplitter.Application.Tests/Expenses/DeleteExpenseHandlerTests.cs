@@ -26,7 +26,7 @@ public sealed class DeleteExpenseHandlerTests
     {
         public int SaveCount { get; private set; }
 
-        public override Task<Trip?> FindWithExpensesForUpdateAsync(
+        public override Task<Trip?> FindWithExpensesTrackedAsync(
             Guid id,
             CancellationToken cancellationToken) => Task.FromResult<Trip?>(trip);
 

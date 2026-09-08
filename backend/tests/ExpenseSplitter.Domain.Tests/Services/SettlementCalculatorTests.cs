@@ -126,6 +126,26 @@ public sealed class SettlementCalculatorTests
         Assert.Throws<OverflowException>(() => SettlementCalculator.Calculate(trip));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FinalBalanceIsIndependentOfIntermediateOverflow(bool counterExpenseFirst)
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        if (counterExpenseFirst)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Counter", debtor.Id, [payer.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, [debtor.Id]);
+        if (!counterExpenseFirst)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Counter", debtor.Id, [payer.Id]);
+
+        var transfer = Assert.Single(SettlementCalculator.Calculate(trip));
+        Assert.Equal(MoneyLimits.MaximumAmount, transfer.Amount);
+        Assert.Equal(payer.Id, transfer.ToParticipantId);
+    }
+
     [Fact]
     public void AllowsExpenseWithZeroNetChangeAtMaximumBalance()
     {

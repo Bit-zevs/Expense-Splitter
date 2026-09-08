@@ -9,7 +9,7 @@ public sealed class DeleteParticipantHandler(ITripStore tripStore)
         Guid participantId,
         CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindWithParticipantsAndExpensesForUpdateAsync(
+        var trip = await tripStore.FindWithParticipantsAndExpensesTrackedAsync(
             tripId,
             cancellationToken);
 

@@ -11,7 +11,7 @@ public sealed class AddParticipantHandler(ITripStore tripStore)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));
 
-        var trip = await tripStore.FindForUpdateAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindTrackedAsync(tripId, cancellationToken);
         if (trip is null)
         {
             return null;

@@ -9,7 +9,7 @@
 
 | Таблица | Ключ | Остальные столбцы |
 | --- | --- | --- |
-| `Trips` | `Id` | `Name`, `CreatedAt` |
+| `Trips` | `Id` | `Name`, `Currency`, `CreatedAt` |
 | `Participants` | `Id` | shadow `TripId`, `Name` |
 | `Expenses` | `Id` | shadow `TripId`, `Amount`, `Description`, `PaidByParticipantId`, `SplitType`, `OccurredAt` |
 | `ExpenseParticipants` | `(ExpenseId, ParticipantId)` | `Amount` |
@@ -157,3 +157,18 @@ dotnet test backend/tests/ExpenseSplitter.Infrastructure.Tests --filter FullyQua
 добавление расхода после загрузки, стабильность взаиморасчётов,
 FK и составной PK, каскады, запрет удаления используемого участника, атомарность
 сохранения, CHECK-ограничения, индексы, совпадение модели с миграцией и её откат.
+
+## Контракт записи и диагностики
+
+Методы `Find*TrackedAsync` включают EF tracking, но не выполняют SQL `FOR UPDATE`.
+`AddAsync` только добавляет сущность в tracker; каждый обработчик записи явно вызывает
+`SaveChangesAsync`. Конкурентное удаление и FK-конфликт записи возвращают HTTP 409;
+клиенту следует обновить поездку перед повторением операции.
+
+`/health` — только liveness процесса API, без проверки доступности PostgreSQL.
+Не используйте его как readiness-проверку БД.
+
+API возвращает денежные значения строками, сохраняющими точность decimal. Запросы
+принимают строки и JSON numbers для совместимости; браузеры должны отправлять строки.
+Калькулятор накапливает целые копейки в BigInteger и проверяет диапазон только
+финального баланса, поэтому перестановка расходов не влияет на результат.

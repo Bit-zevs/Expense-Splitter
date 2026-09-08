@@ -2,6 +2,7 @@ using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using Npgsql;
 
 namespace ExpenseSplitter.Infrastructure.Persistence;
 
@@ -10,7 +11,6 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
     public async Task AddAsync(Trip trip, CancellationToken cancellationToken)
     {
         await dbContext.Trips.AddAsync(trip, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
@@ -18,7 +18,7 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
             .AsNoTracking()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
-    public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+    public Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Trips.SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
     public Task<Trip?> FindWithParticipantsByIdAsync(
@@ -56,21 +56,21 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
         return trip;
     }
 
-    public Task<Trip?> FindWithParticipantsForUpdateAsync(
+    public Task<Trip?> FindWithParticipantsTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => dbContext.Trips
             .Include(trip => trip.Participants)
             .AsSingleQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
-    public Task<Trip?> FindWithExpensesForUpdateAsync(
+    public Task<Trip?> FindWithExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => dbContext.Trips
             .Include(trip => trip.Expenses)
             .AsSingleQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
-    public Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+    public Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => dbContext.Trips
             .Include(trip => trip.Participants)
@@ -107,6 +107,25 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new WriteConflictException(exception);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException postgres && IsWriteConflict(postgres))
+        {
+            throw new WriteConflictException(exception);
+        }
+        // Deferred foreign keys are checked at commit, outside EF's update wrapper.
+        catch (PostgresException exception) when (IsWriteConflict(exception))
+        {
+            throw new WriteConflictException(exception);
+        }
     }
+
+    private static bool IsWriteConflict(PostgresException exception) => exception.SqlState is
+        PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected;
 }
