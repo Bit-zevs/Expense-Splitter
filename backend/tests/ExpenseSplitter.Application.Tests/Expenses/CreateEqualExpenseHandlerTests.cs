@@ -55,6 +55,32 @@ public sealed class CreateEqualExpenseHandlerTests
     }
 
     [Fact]
+    public async Task PreservesManuallySelectedOccurrenceTimeAsUtcMinute()
+    {
+        var trip = new Trip("Summer vacation");
+        var payer = trip.AddParticipant("Alice");
+        var store = new StubTripStore(trip);
+        var handler = new CreateEqualExpenseHandler(store);
+        var occurredAt = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
+
+        var result = await handler.HandleAsync(
+            trip.Id,
+            new CreateEqualExpenseCommand(
+                12.34m,
+                "Coffee",
+                payer.Id,
+                [payer.Id],
+                occurredAt),
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 8, 9, 37, 0, TimeSpan.Zero),
+            result.OccurredAt);
+        Assert.Equal(result.OccurredAt, Assert.Single(trip.Expenses).OccurredAt);
+    }
+
+    [Fact]
     public async Task CreatesExpenseWithMaximumExactCentAmount()
     {
         var trip = new Trip("Maximum amount trip");

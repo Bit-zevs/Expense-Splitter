@@ -175,6 +175,38 @@ public sealed class EndpointTests
         Assert.Equal(HttpStatusCode.NotFound, getDeletedTrip.StatusCode);
     }
 
+    [Fact]
+    public async Task DeleteEndpointsReturnNotFoundForMissingOrAlreadyDeletedEntities()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        var trip = new Trip("Trip");
+        var participant = trip.AddParticipant("Alice");
+        var expense = trip.AddEqualExpenseForAll(10m, "Coffee", participant.Id);
+        factory.Store.Add(trip);
+        using var client = factory.CreateClient();
+
+        using var expenseDelete = await client.DeleteAsync(
+            $"/trips/{trip.Id}/expenses/{expense.Id}");
+        using var repeatedExpenseDelete = await client.DeleteAsync(
+            $"/trips/{trip.Id}/expenses/{expense.Id}");
+        using var participantDelete = await client.DeleteAsync(
+            $"/trips/{trip.Id}/participants/{participant.Id}");
+        using var repeatedParticipantDelete = await client.DeleteAsync(
+            $"/trips/{trip.Id}/participants/{participant.Id}");
+        using var tripDelete = await client.DeleteAsync($"/trips/{trip.Id}");
+        using var repeatedTripDelete = await client.DeleteAsync($"/trips/{trip.Id}");
+        using var missingTripExpenseDelete = await client.DeleteAsync(
+            $"/trips/{Guid.NewGuid()}/expenses/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NoContent, expenseDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, repeatedExpenseDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, participantDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, repeatedParticipantDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, tripDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, repeatedTripDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, missingTripExpenseDelete.StatusCode);
+    }
+
     [Theory]
     [InlineData("/trips")]
     public async Task InvalidRequestBodyReturnsBadRequest(string path)
