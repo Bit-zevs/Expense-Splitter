@@ -32,7 +32,7 @@ public static class SettlementEndpoints
         catch (OverflowException)
         {
             return Results.Problem(
-                title: "Balance exceeds the supported decimal range.",
+                title: "Money cannot be represented exactly as a decimal monetary value.",
                 statusCode: StatusCodes.Status422UnprocessableEntity);
         }
     }

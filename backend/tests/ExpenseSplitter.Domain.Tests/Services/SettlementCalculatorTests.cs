@@ -8,6 +8,29 @@ namespace ExpenseSplitter.Domain.Tests.Services;
 public sealed class SettlementCalculatorTests
 {
     [Fact]
+    public void UsesParticipantIdOrderRatherThanLargestBalanceOrder()
+    {
+        var trip = new Trip("Trip");
+        for (var i = 0; i < 4; i++) trip.AddParticipant($"Person {i}");
+        var ids = trip.Participants.OrderBy(p => p.Id).Select(p => p.Id).ToArray();
+        trip.AddEqualExpense(4m, "First", ids[0], [ids[2]]);
+        trip.AddEqualExpense(2m, "Second", ids[0], [ids[3]]);
+        trip.AddEqualExpense(4m, "Third", ids[1], [ids[3]]);
+        Assert.Equal(new[] { (ids[2], ids[0], 4m), (ids[3], ids[0], 2m), (ids[3], ids[1], 4m) },
+            SettlementCalculator.Calculate(trip).Select(t => (t.FromParticipantId, t.ToParticipantId, t.Amount)));
+    }
+
+    [Fact]
+    public void CancelsOpposingExpensesBeforeAccumulationBeyondDecimalMagnitude()
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        for (var i = 0; i < 101; i++) trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Credit", payer.Id, [debtor.Id]);
+        for (var i = 0; i < 100; i++) trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Debit", debtor.Id, [payer.Id]);
+        Assert.Equal(MoneyLimits.MaximumAmount, Assert.Single(SettlementCalculator.Calculate(trip)).Amount);
+    }
+    [Fact]
     public void CalculatesExpectedTransfersForOneCreditorAndTwoDebtors()
     {
         var trip = new Trip("Trip");

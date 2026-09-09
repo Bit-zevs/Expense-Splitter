@@ -12,6 +12,7 @@ public static class ParticipantEndpoints
     {
         endpoints.MapPost("/trips/{tripId:guid}/participants", AddParticipantAsync)
             .WithName("AddParticipant")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Adds a participant to a trip")
             .Produces<ParticipantResult>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -35,6 +36,7 @@ public static class ParticipantEndpoints
                 "/trips/{tripId:guid}/participants/{participantId:guid}",
                 DeleteParticipantAsync)
             .WithName("DeleteParticipant")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Deletes a participant and expenses involving them")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound);

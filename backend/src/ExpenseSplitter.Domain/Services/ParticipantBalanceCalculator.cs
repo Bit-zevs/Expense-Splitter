@@ -1,4 +1,3 @@
-using System.Numerics;
 using ExpenseSplitter.Domain.Entities;
 using ExpenseSplitter.Domain.ValueObjects;
 
@@ -11,7 +10,7 @@ public static class ParticipantBalanceCalculator
         ArgumentNullException.ThrowIfNull(trip);
 
         var balances = CreateBalances(trip);
-        var balancesByParticipantId = balances.ToDictionary(balance => balance.ParticipantId, _ => BigInteger.Zero);
+        var balancesByParticipantId = balances.ToDictionary(balance => balance.ParticipantId, _ => new Contributions());
 
         foreach (var expense in trip.Expenses)
         {
@@ -20,7 +19,7 @@ public static class ParticipantBalanceCalculator
 
         foreach (var balance in balances)
         {
-            balance.Amount = MoneyCents.ToDecimalExact(balancesByParticipantId[balance.ParticipantId]);
+            balance.Amount = balancesByParticipantId[balance.ParticipantId].Calculate();
         }
         return balances.AsReadOnly();
     }
@@ -46,16 +45,41 @@ public static class ParticipantBalanceCalculator
 
     private static void ApplyExpense(
         Expense expense,
-        IDictionary<Guid, BigInteger> balances)
+        IDictionary<Guid, Contributions> balances)
     {
         if (!balances.ContainsKey(expense.PaidByParticipantId))
             throw new InvalidOperationException("An expense payer does not belong to the trip.");
-        balances[expense.PaidByParticipantId] += MoneyCents.FromDecimal(expense.Amount);
+        balances[expense.PaidByParticipantId].Credits.Add(expense.Amount);
         foreach (var share in expense.Shares)
         {
             if (!balances.ContainsKey(share.ParticipantId))
                 throw new InvalidOperationException("An expense share participant does not belong to the trip.");
-            balances[share.ParticipantId] -= MoneyCents.FromDecimal(share.Amount);
+            balances[share.ParticipantId].Debits.Add(share.Amount);
+        }
+    }
+    private sealed class Contributions
+    {
+        public List<decimal> Credits { get; } = [];
+        public List<decimal> Debits { get; } = [];
+
+        public decimal Calculate()
+        {
+            // Cancel opposing single-expense amounts before summation, so a valid
+            // final balance does not depend on a transient overflow or expense order.
+            var credit = 0;
+            var debit = 0;
+            while (credit < Credits.Count && debit < Debits.Count)
+            {
+                var cancelled = Math.Min(Credits[credit], Debits[debit]);
+                Credits[credit] -= cancelled;
+                Debits[debit] -= cancelled;
+                if (Credits[credit] == 0) credit++;
+                if (Debits[debit] == 0) debit++;
+            }
+            var total = DecimalMoney.Zero;
+            for (; credit < Credits.Count; credit++) total += DecimalMoney.FromDecimal(Credits[credit]);
+            for (; debit < Debits.Count; debit++) total -= DecimalMoney.FromDecimal(Debits[debit]);
+            return total.ToDecimalExact();
         }
     }
 }

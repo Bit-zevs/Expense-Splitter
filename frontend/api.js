@@ -45,6 +45,7 @@ export function createApi(baseUrl, fetchImplementation = globalThis.fetch) {
       method: 'POST',
       body: JSON.stringify({ name, currency }),
     }),
+    getSnapshot: tripId => request(`/trips/${tripId}/snapshot`),
     getTrip: tripId => request(`/trips/${tripId}`),
     deleteTrip: tripId => request(`/trips/${tripId}`, { method: 'DELETE' }),
     getParticipants: tripId => request(`/trips/${tripId}/participants`),

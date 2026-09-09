@@ -17,6 +17,44 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
     private const decimal MaximumAmount = MoneyLimits.MaximumAmount;
 
     [Fact]
+    public async Task SnapshotHandlerReturnsOneCoherentGraphDuringConcurrentWrite()
+    {
+        var options = await database.CreateDatabaseAsync();
+        var trip = new Trip("Snapshot trip");
+        trip.AddParticipant("Existing");
+        await using (var seed = new ExpenseSplitterDbContext(options))
+        {
+            seed.Trips.Add(trip);
+            await seed.SaveChangesAsync();
+        }
+        using var interceptor = new PauseAfterParticipantsInterceptor();
+        var readOptions = new DbContextOptionsBuilder<ExpenseSplitterDbContext>(options).AddInterceptors(interceptor).Options;
+        await using var read = new ExpenseSplitterDbContext(readOptions);
+        var handler = new ExpenseSplitter.Application.Trips.GetTripSnapshot.GetTripSnapshotHandler(new TripStore(read));
+        var pending = handler.HandleAsync(trip.Id, CancellationToken.None);
+        await interceptor.ParticipantsLoaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        try
+        {
+            await using var write = new ExpenseSplitterDbContext(options);
+            var store = new TripStore(write);
+            var aggregate = Assert.IsType<Trip>(await store.FindWithParticipantsTrackedAsync(trip.Id, CancellationToken.None));
+            var added = aggregate.AddParticipant("Concurrent");
+            aggregate.AddEqualExpense(10m, "New expense", added.Id, [added.Id]);
+            await store.SaveChangesAsync(CancellationToken.None);
+        }
+        finally { interceptor.Resume(); }
+        var snapshot = Assert.IsType<ExpenseSplitter.Application.Trips.GetTripSnapshot.TripSnapshotResult>(await pending);
+        Assert.Single(snapshot.Participants);
+        Assert.Empty(snapshot.Expenses);
+        Assert.Equal(0m, Assert.Single(snapshot.Settlement!.Balances).Balance);
+        await using var fresh = new ExpenseSplitterDbContext(options);
+        var latest = await new ExpenseSplitter.Application.Trips.GetTripSnapshot.GetTripSnapshotHandler(new TripStore(fresh))
+            .HandleAsync(trip.Id, CancellationToken.None);
+        Assert.Equal(2, latest!.Participants.Count);
+        Assert.Single(latest.Expenses);
+    }
+
+    [Fact]
     public async Task ConcurrentParticipantDeletionBecomesWriteConflictAndRollsBackExpense()
     {
         var options = await database.CreateDatabaseAsync();

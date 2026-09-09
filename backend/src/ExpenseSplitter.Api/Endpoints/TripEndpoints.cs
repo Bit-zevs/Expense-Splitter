@@ -1,3 +1,4 @@
+using ExpenseSplitter.Application.Trips.GetTripSnapshot;
 using ExpenseSplitter.Application.Trips.CreateTrip;
 using ExpenseSplitter.Application.Trips.DeleteTrip;
 using ExpenseSplitter.Application.Trips.GetTrip;
@@ -10,6 +11,7 @@ public static class TripEndpoints
     {
         endpoints.MapPost("/trips", CreateTripAsync)
             .WithName("CreateTrip")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Creates a trip")
             .Produces<CreateTripResult>(StatusCodes.Status201Created)
             .ProducesValidationProblem();
@@ -22,8 +24,20 @@ public static class TripEndpoints
 
         endpoints.MapDelete("/trips/{id:guid}", DeleteTripAsync)
             .WithName("DeleteTrip")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Deletes a trip and all its data")
             .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound);
+
+        endpoints.MapGet("/trips/{id:guid}/snapshot", async (
+            Guid id, GetTripSnapshotHandler handler, CancellationToken cancellationToken) =>
+        {
+            var result = await handler.HandleAsync(id, cancellationToken);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        })
+            .WithName("GetTripSnapshot")
+            .WithSummary("Gets trip data and calculation from one database snapshot")
+            .Produces<TripSnapshotResult>()
             .Produces(StatusCodes.Status404NotFound);
 
         return endpoints;

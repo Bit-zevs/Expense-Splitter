@@ -12,6 +12,7 @@ public static class ExpenseEndpoints
     {
         endpoints.MapPost("/trips/{tripId:guid}/expenses", CreateEqualExpenseAsync)
             .WithName("CreateEqualExpense")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Creates an equally split expense")
             .Produces<ExpenseResult>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -35,6 +36,7 @@ public static class ExpenseEndpoints
                 "/trips/{tripId:guid}/expenses/{expenseId:guid}",
                 DeleteExpenseAsync)
             .WithName("DeleteExpense")
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Deletes an expense")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound);

@@ -43,6 +43,15 @@ Frontend подключает создание, открытие и удален
 но и `Cors:AllowedOrigins` в конфигурации backend (например,
 `Cors__AllowedOrigins__0=https://expenses.example.com`).
 
-Денежные поля API передаются строками; frontend вычисляет копейки через BigInt.
+Денежные поля API передаются строками; frontend использует только десятичную арифметику `decimal.js` (60 значащих цифр).
+`BigInt` и JavaScript `Number` для денег запрещены; backend использует только `decimal`.
 Обновляйте frontend и backend вместе. `/health` проверяет только liveness API,
 а не готовность PostgreSQL. Ошибка расчёта не блокирует участников и расходы.
+
+Экран поездки загружается одним `GET /trips/{id}/snapshot`, включая расчёт.
+После 409 выполняется полный reload без автоматического повторения команды.
+Demo использует порядок участников по ID, как backend.
+Изображение гор подключено через `new URL(..., import.meta.url)` и попадает в production bundle.
+
+Перед следующей крупной функциональностью следует разделить `app.js` на
+views/state/actions/router. Масштабный рефакторинг перед MVP не требуется.

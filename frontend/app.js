@@ -1,5 +1,8 @@
-import { createApi } from './api.js';
-import { toCents, fromCents, parseAmount, formatMoney, splitIntoShares } from './money.js';
+import { calculateSettlement as calculateDemoSettlement } from './settlement.js';
+import { ApiError, createApi } from './api.js';
+import { Decimal, toCents, fromCents, parseAmount, formatMoney, splitIntoShares } from './money.js';
+
+const mountainsUrl = new URL('./assets/mountains.svg', import.meta.url).href;
 
 const DEMO_TRIP_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5050').replace(/\/$/, '');
@@ -136,7 +139,7 @@ function home() {
               <button class="btn btn-outline" data-demo>Посмотреть пример</button>
             </div>
           </div>
-          <div class="hero-visual"><img src="./assets/mountains.svg" alt="Горная поездка"></div>
+          <div class="hero-visual"><img src="${mountainsUrl}" alt="Горная поездка"></div>
         </section>
 
         <section class="open-card">
@@ -246,7 +249,7 @@ function tabContent() {
 }
 
 function expensesTab() {
-  const total = state.expenses.reduce((sum, expense) => sum + toCents(expense.amount), 0n);
+  const total = state.expenses.reduce((sum, expense) => sum.plus(toCents(expense.amount)), new Decimal(0));
 
   if (!state.participants.length) {
     return emptyState('Сначала добавьте участников', 'Расход должен ссылаться на плательщика и хотя бы одного участника поездки.', 'participant', 'Добавить участника');
@@ -294,7 +297,7 @@ function participantsTab() {
       ${state.participants.map((participant, index) => {
         const paid = state.expenses
           .filter(expense => expense.paidByParticipantId === participant.id)
-          .reduce((sum, expense) => sum + toCents(expense.amount), 0n);
+          .reduce((sum, expense) => sum.plus(toCents(expense.amount)), new Decimal(0));
         return `
           <div class="person-row">
             <div class="avatar">${escapeHtml(participant.name.slice(0, 1).toUpperCase())}</div>
@@ -321,7 +324,7 @@ function resultsTab() {
   const { balances, transfers } = state.isDemo
     ? calculateSettlement()
     : state.settlement;
-  const total = state.expenses.reduce((sum, expense) => sum + toCents(expense.amount), 0n);
+  const total = state.expenses.reduce((sum, expense) => sum.plus(toCents(expense.amount)), new Decimal(0));
 
   return `
     <div class="results-hero">
@@ -338,12 +341,12 @@ function resultsTab() {
         <div class="balance-list">
           ${balances.map(item => {
             const participant = participantById(item.participantId);
-            const positive = toCents(item.balance) >= 0n;
+            const positive = toCents(item.balance).gte(0);
             return `
               <div class="balance-row">
                 <div class="avatar small">${escapeHtml(participant?.name?.[0] || '?')}</div>
                 <div class="balance-main"><strong>${escapeHtml(participant?.name || 'Участник')}</strong><span>${positive ? 'должен получить' : 'должен заплатить'}</span></div>
-                <div class="balance-value ${positive ? 'positive' : 'negative'}">${positive && toCents(item.balance) !== 0n ? '+' : ''}${money(item.balance)}</div>
+                <div class="balance-value ${positive ? 'positive' : 'negative'}">${positive && !toCents(item.balance).isZero() ? '+' : ''}${money(item.balance)}</div>
               </div>`;
           }).join('')}
         </div>
@@ -540,59 +543,7 @@ function participantById(id) {
 }
 
 function calculateSettlement() {
-  const balanceMap = new Map(state.participants.map(participant => [participant.id, 0n]));
-
-  for (const expense of state.expenses) {
-    balanceMap.set(
-      expense.paidByParticipantId,
-      (balanceMap.get(expense.paidByParticipantId) || 0n) + toCents(expense.amount),
-    );
-    for (const share of expense.shares) {
-      balanceMap.set(
-        share.participantId,
-        (balanceMap.get(share.participantId) || 0n) - toCents(share.amount),
-      );
-    }
-  }
-
-  const balances = state.participants.map(participant => ({
-    participantId: participant.id,
-    balance: fromCents(balanceMap.get(participant.id) || 0n),
-  }));
-
-  const debtors = balances
-    .filter(item => toCents(item.balance) < 0n)
-    .map(item => ({ ...item, cents: -toCents(item.balance) }))
-    .sort((a, b) => a.cents === b.cents ? 0 : a.cents > b.cents ? -1 : 1);
-  const creditors = balances
-    .filter(item => toCents(item.balance) > 0n)
-    .map(item => ({ ...item, cents: toCents(item.balance) }))
-    .sort((a, b) => a.cents === b.cents ? 0 : a.cents > b.cents ? -1 : 1);
-
-  const transfers = [];
-  let debtorIndex = 0;
-  let creditorIndex = 0;
-
-  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
-    const debtor = debtors[debtorIndex];
-    const creditor = creditors[creditorIndex];
-    const cents = debtor.cents < creditor.cents ? debtor.cents : creditor.cents;
-
-    if (cents > 0) {
-      transfers.push({
-        fromParticipantId: debtor.participantId,
-        toParticipantId: creditor.participantId,
-        amount: fromCents(cents),
-      });
-    }
-
-    debtor.cents -= cents;
-    creditor.cents -= cents;
-    if (debtor.cents === 0n) debtorIndex += 1;
-    if (creditor.cents === 0n) creditorIndex += 1;
-  }
-
-  return { balances, transfers };
+  return calculateDemoSettlement(state.participants, state.expenses);
 }
 
 function currencySymbol() {
@@ -648,15 +599,11 @@ function mutationIsCurrent(tripId, version) {
 
 async function loadTrip(tripId, activeTab = 'expenses') {
   const version = ++loadVersion;
-  const [trip, participants, expenses, calculation] = await Promise.all([
-    api.getTrip(tripId), api.getParticipants(tripId), api.getExpenses(tripId),
-    api.getSettlements(tripId).then(value => ({ value }), error => ({ error })),
-  ]);
+  const snapshot = await api.getSnapshot(tripId);
   if (version !== loadVersion || routeTripId() !== tripId.toLowerCase()) return false;
   state = {
-    trip, participants, expenses,
-    settlement: calculation.value || { balances: [], transfers: [] },
-    calculationError: calculation.error ? getErrorMessage(calculation.error) : null,
+    ...snapshot,
+    settlement: snapshot.settlement || { balances: [], transfers: [] },
     activeTab, modal: null, selectedExpenseId: null, pendingDeletion: null, toast: null, isDemo: false,
   };
   return true;
@@ -673,17 +620,26 @@ async function refreshCalculation(message = null) {
   state.calculationError = 'Обновляется';
   render();
   if (state.isDemo) {
-    state.settlement = calculateSettlement();
-    state.calculationError = null;
+    try {
+      state.settlement = calculateSettlement();
+      state.calculationError = null;
+    } catch (error) {
+      state.calculationError = getErrorMessage(error);
+      if (message) state.toast = `${message}. Не удалось обновить расчёт.`;
+    }
     render();
     clearToastLater();
     return;
   }
   try {
-    const result = await api.getSettlements(tripId);
+    const result = await api.getSnapshot(tripId);
     if (!mutationIsCurrent(tripId, version) || calculation !== calculationVersion) return;
-    state.settlement = result;
-    state.calculationError = null;
+    state.trip = result.trip;
+    state.participants = result.participants;
+    state.expenses = result.expenses;
+    state.settlement = result.settlement || { balances: [], transfers: [] };
+    state.calculationError = result.calculationError;
+    if (result.calculationError && message) state.toast = `${message}. Не удалось обновить расчёт.`;
   } catch (error) {
     if (!mutationIsCurrent(tripId, version) || calculation !== calculationVersion) return;
     state.calculationError = getErrorMessage(error);
@@ -691,6 +647,28 @@ async function refreshCalculation(message = null) {
   }
   render();
   clearToastLater();
+}
+
+async function handleMutationError(error, tripId, version, showError) {
+  if (!mutationIsCurrent(tripId, version)) return;
+  if (!(error instanceof ApiError) || error.status !== 409) { showError(getErrorMessage(error)); return; }
+  const activeTab = state.activeTab;
+  const reloadVersion = loadVersion + 1;
+  state.trip = null;
+  state.toast = null;
+  app.innerHTML = `${header()}<main class="container"><p role="status">Данные поездки изменились. Обновление…</p></main>`;
+  try {
+    if (!await loadTrip(tripId, activeTab)) return;
+    state.toast = 'Данные поездки изменились и были обновлены. Повторите действие.';
+    render();
+    clearToastLater();
+  } catch (reloadError) {
+    if (reloadVersion !== loadVersion || routeTripId() !== tripId.toLowerCase()) return;
+    // Stale state must not remain editable when recovery failed.
+    state.trip = null;
+    app.innerHTML = `${header()}<main class="container"><p role="alert">${escapeHtml(getErrorMessage(reloadError))}</p><button class="btn btn-outline" data-reload-trip>Повторить загрузку поездки</button><a href="#/">На главную</a></main>`;
+    document.querySelector('[data-reload-trip]')?.addEventListener('click', handleRouteChange);
+  }
 }
 
 async function handleRouteChange() {
@@ -822,7 +800,7 @@ function bind() {
       state.participants.push(participant);
       await refreshCalculation(`${name} добавлен в поездку`);
     } catch (error) {
-      showInlineError(input, getErrorMessage(error));
+      await handleMutationError(error, tripId, version, message => showInlineError(input, message));
     } finally {
       setFormPending(form, false);
     }
@@ -865,7 +843,7 @@ function bind() {
       state.expenses.push(expense);
       await refreshCalculation('Расход добавлен');
     } catch (error) {
-      showFormError(form, getErrorMessage(error));
+      await handleMutationError(error, tripId, version, message => showFormError(form, message));
     } finally {
       setFormPending(form, false);
     }
@@ -957,7 +935,7 @@ async function handleDelete(event) {
       await refreshCalculation(message);
     }
   } catch (error) {
-    showFormError(form, getErrorMessage(error));
+    await handleMutationError(error, tripId, version, message => showFormError(form, message));
     setFormPending(form, false);
   }
 }
