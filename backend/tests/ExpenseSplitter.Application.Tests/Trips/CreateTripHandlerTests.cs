@@ -10,7 +10,7 @@ public sealed class CreateTripHandlerTests
     public async Task CreatesAndPersistsTrip()
     {
         var store = new RecordingTripStore();
-        var handler = new CreateTripHandler(store);
+        var handler = new CreateTripHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -32,7 +32,7 @@ public sealed class CreateTripHandlerTests
     public async Task UsesRubWhenCurrencyIsOmitted()
     {
         var store = new RecordingTripStore();
-        var handler = new CreateTripHandler(store);
+        var handler = new CreateTripHandler(store, new TestCurrentAccount());
 
         var result = await handler.HandleAsync(
             new CreateTripCommand("Trip"),
@@ -45,7 +45,7 @@ public sealed class CreateTripHandlerTests
     public async Task RejectsUnsupportedCurrencyWithoutPersisting()
     {
         var store = new RecordingTripStore();
-        var handler = new CreateTripHandler(store);
+        var handler = new CreateTripHandler(store, new TestCurrentAccount());
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.HandleAsync(
@@ -62,7 +62,7 @@ public sealed class CreateTripHandlerTests
     public async Task RejectsMissingNameWithoutPersisting(string? name)
     {
         var store = new RecordingTripStore();
-        var handler = new CreateTripHandler(store);
+        var handler = new CreateTripHandler(store, new TestCurrentAccount());
 
         await Assert.ThrowsAnyAsync<ArgumentException>(() =>
             handler.HandleAsync(new CreateTripCommand(name), CancellationToken.None));

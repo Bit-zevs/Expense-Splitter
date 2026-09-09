@@ -5,6 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <Compile Include="../ExpenseSplitter.Infrastructure.Tests/PostgreSqlFixture.cs" Link="PostgreSqlFixture.cs" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

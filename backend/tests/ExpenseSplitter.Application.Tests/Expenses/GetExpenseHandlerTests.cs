@@ -9,12 +9,12 @@ public sealed class GetExpenseHandlerTests
     [Fact]
     public async Task ReturnsExpenseFromRequestedTrip()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var expense = trip.AddEqualExpenseForAll(12.34m, "Coffee", participant.Id);
         var requestedTripId = Guid.NewGuid();
         var store = new StubTripStore(expense);
-        var handler = new GetExpenseHandler(store);
+        var handler = new GetExpenseHandler(store, new AllowTripAccess());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -34,7 +34,7 @@ public sealed class GetExpenseHandlerTests
     [Fact]
     public async Task ReturnsNullWhenExpenseDoesNotExist()
     {
-        var handler = new GetExpenseHandler(new StubTripStore(null));
+        var handler = new GetExpenseHandler(new StubTripStore(null), new AllowTripAccess());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),

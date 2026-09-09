@@ -9,9 +9,9 @@ public sealed class AddParticipantHandlerTests
     [Fact]
     public async Task AddsParticipantAndSavesTrip()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var store = new StubTripStore(trip);
-        var handler = new AddParticipantHandler(store);
+        var handler = new AddParticipantHandler(store, new AllowTripAccess());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -31,7 +31,7 @@ public sealed class AddParticipantHandlerTests
     public async Task ReturnsNullWithoutSavingWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new AddParticipantHandler(store);
+        var handler = new AddParticipantHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),
@@ -48,8 +48,8 @@ public sealed class AddParticipantHandlerTests
     [InlineData("   ")]
     public async Task RejectsMissingNameWithoutSaving(string? name)
     {
-        var store = new StubTripStore(new Trip("Summer vacation"));
-        var handler = new AddParticipantHandler(store);
+        var store = new StubTripStore(TestTrips.Create("Summer vacation"));
+        var handler = new AddParticipantHandler(store, new AllowTripAccess());
 
         await Assert.ThrowsAnyAsync<ArgumentException>(() =>
             handler.HandleAsync(Guid.NewGuid(), name, CancellationToken.None));

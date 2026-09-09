@@ -44,9 +44,10 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
         Guid id,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(
-            IsolationLevel.RepeatableRead,
-            cancellationToken);
+        var ownsTransaction = dbContext.Database.CurrentTransaction is null;
+        await using var transaction = ownsTransaction
+            ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
+            : null;
 
         var trip = await dbContext.Trips
             .AsNoTracking()
@@ -55,7 +56,7 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
             .AsSplitQuery()
             .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         return trip;
     }
 
@@ -150,11 +151,11 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
 
     // Commit-time FK failures are unwrapped; Npgsql may wrap serialization failures
     // in InvalidOperationException -> DbUpdateException -> PostgresException.
-    private static bool IsWriteConflict(Exception exception) => exception switch
+    internal static bool IsWriteConflict(Exception exception) => exception switch
     {
         DbUpdateConcurrencyException => true,
         PostgresException postgres => postgres.SqlState is
-            PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
+            PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
         DbUpdateException or InvalidOperationException when exception.InnerException is not null =>
             IsWriteConflict(exception.InnerException),
         _ => false

@@ -1,3 +1,4 @@
+using ExpenseSplitter.Application.Access;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.ValueObjects;
 
@@ -10,13 +11,14 @@ public sealed record CreateEqualExpenseCommand(
     IReadOnlyCollection<Guid>? ParticipantIds,
     DateTimeOffset? OccurredAt = null);
 
-public sealed class CreateEqualExpenseHandler(ITripStore tripStore)
+public sealed class CreateEqualExpenseHandler(ITripStore tripStore, ITripAccess access)
 {
     public async Task<ExpenseResult?> HandleAsync(
         Guid tripId,
         CreateEqualExpenseCommand command,
         CancellationToken cancellationToken)
     {
+        await access.RequireAsync(tripId, ownerOnly: false, write: true, cancellationToken);
         ArgumentNullException.ThrowIfNull(command);
         ValidateCommand(command);
 

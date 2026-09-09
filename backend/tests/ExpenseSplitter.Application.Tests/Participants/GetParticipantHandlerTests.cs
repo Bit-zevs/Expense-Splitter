@@ -10,9 +10,9 @@ public sealed class GetParticipantHandlerTests
     public async Task ReturnsParticipantFromRequestedTrip()
     {
         var tripId = Guid.NewGuid();
-        var participant = new Trip("Trip").AddParticipant("Alice");
+        var participant = TestTrips.Create("Trip").AddParticipant("Alice");
         var store = new StubTripStore(participant);
-        var handler = new GetParticipantHandler(store);
+        var handler = new GetParticipantHandler(store, new AllowTripAccess());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -31,7 +31,7 @@ public sealed class GetParticipantHandlerTests
     [Fact]
     public async Task ReturnsNullWhenParticipantDoesNotExist()
     {
-        var handler = new GetParticipantHandler(new StubTripStore(null));
+        var handler = new GetParticipantHandler(new StubTripStore(null), new AllowTripAccess());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),

@@ -1,0 +1,8 @@
+<Project>
+  <Import Project="../Directory.Build.props" />
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)TestTrips.cs" Link="TestTrips.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TestAccess.cs" Link="TestAccess.cs"
+             Condition="'$(MSBuildProjectName)' != 'ExpenseSplitter.Domain.Tests'" />
+  </ItemGroup>
+</Project>

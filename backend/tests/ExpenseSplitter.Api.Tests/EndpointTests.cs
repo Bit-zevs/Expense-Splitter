@@ -33,7 +33,7 @@ public sealed class EndpointTests
     public async Task WriteConflictsReturn409(string operation)
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var expense = trip.AddEqualExpense(1m, "Expense", payer.Id, [payer.Id]);
         factory.Store.Add(trip);
@@ -62,7 +62,7 @@ public sealed class EndpointTests
     public async Task MoneyStringsRoundTripExactly(string amount)
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         factory.Store.Add(trip);
@@ -156,7 +156,7 @@ public sealed class EndpointTests
     public async Task CreatedParticipantLocationTargetsRegisteredItemEndpoint()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
 
@@ -180,7 +180,7 @@ public sealed class EndpointTests
     public async Task CreatedExpenseLocationTargetsRegisteredItemEndpoint()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Alice");
         var participant = trip.AddParticipant("Bob");
         var occurredAt = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
@@ -223,7 +223,7 @@ public sealed class EndpointTests
     public async Task DeleteEndpointsRemoveExpenseParticipantAndTrip()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         var firstExpense = trip.AddEqualExpense(10m, "First", alice.Id, [bob.Id]);
@@ -249,7 +249,7 @@ public sealed class EndpointTests
     public async Task DeleteEndpointsReturnNotFoundForMissingOrAlreadyDeletedEntities()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var expense = trip.AddEqualExpenseForAll(10m, "Coffee", participant.Id);
         factory.Store.Add(trip);
@@ -308,7 +308,7 @@ public sealed class EndpointTests
     public async Task ParticipantAndExpenseValidationReturnValidationProblems()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
@@ -349,7 +349,7 @@ public sealed class EndpointTests
     public async Task CollectionAndCalculationEndpointsReturnExpectedJson()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Alice");
         var debtor = trip.AddParticipant("Bob");
         trip.AddEqualExpense(12.34m, "Coffee", payer.Id, new[] { debtor.Id });
@@ -410,7 +410,7 @@ public sealed class EndpointTests
     public async Task InvalidBalanceQueryReturnsValidationProblem()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
@@ -428,7 +428,7 @@ public sealed class EndpointTests
     public async Task CalculationNotExactlyRepresentableAsDecimalReturnsUnprocessableEntity(int expenseCount)
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Extreme trip");
+        var trip = TestTrips.Create("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         for (var index = 0; index < expenseCount; index++)
@@ -450,7 +450,7 @@ public sealed class EndpointTests
     public async Task DerivedMoneyAboveExpenseLimitReturnsExactStrings()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Large trip");
+        var trip = TestTrips.Create("Large trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);

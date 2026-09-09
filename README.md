@@ -12,6 +12,11 @@ Participants belong to a trip, record expenses, and receive a clear settlement p
 - Delete trips, participants, and expenses.
 - Support equal splitting between all or selected participants.
 - Calculate each participant's balance and propose a simplified settlement plan.
+- Register/login with ASP.NET Core Identity cookies; trips are private to approved accounts.
+- Share a rotating join code, approve requests, and link an account to an existing phantom participant.
+
+Backend authentication and membership are documented in [accounts and access](docs/accounts.md).
+The existing frontend has not yet been adapted to login and CSRF tokens; protected API calls require them.
 
 ## Backend structure
 

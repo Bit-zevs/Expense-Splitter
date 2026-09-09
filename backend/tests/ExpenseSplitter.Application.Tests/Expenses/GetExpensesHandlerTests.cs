@@ -10,12 +10,12 @@ public sealed class GetExpensesHandlerTests
     [Fact]
     public async Task ReturnsTripExpensesWithShares()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var payer = trip.AddParticipant("Alice");
         var participant = trip.AddParticipant("Bob");
         var expense = trip.AddEqualExpense(12.34m, "Coffee", payer.Id, [participant.Id]);
         var store = new StubTripStore(trip);
-        var handler = new GetExpensesHandler(store);
+        var handler = new GetExpensesHandler(store, new AllowTripAccess());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
@@ -37,8 +37,8 @@ public sealed class GetExpensesHandlerTests
     [Fact]
     public async Task ReturnsEmptyCollectionWhenTripHasNoExpenses()
     {
-        var store = new StubTripStore(new Trip("Summer vacation"));
-        var handler = new GetExpensesHandler(store);
+        var store = new StubTripStore(TestTrips.Create("Summer vacation"));
+        var handler = new GetExpensesHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -50,7 +50,7 @@ public sealed class GetExpensesHandlerTests
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new GetExpensesHandler(store);
+        var handler = new GetExpensesHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 

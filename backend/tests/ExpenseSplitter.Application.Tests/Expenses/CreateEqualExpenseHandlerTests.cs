@@ -10,12 +10,12 @@ public sealed class CreateEqualExpenseHandlerTests
     [Fact]
     public async Task CreatesEqualExpenseForAllParticipantsAndSavesTrip()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var payer = trip.AddParticipant("Alice");
         trip.AddParticipant("Bob");
         trip.AddParticipant("Charlie");
         var store = new StubTripStore(trip);
-        var handler = new CreateEqualExpenseHandler(store);
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -37,11 +37,11 @@ public sealed class CreateEqualExpenseHandlerTests
     [Fact]
     public async Task CreatesEqualExpenseForSelectedParticipants()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var payer = trip.AddParticipant("Alice");
         var selected = trip.AddParticipant("Bob");
         var store = new StubTripStore(trip);
-        var handler = new CreateEqualExpenseHandler(store);
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(
             trip.Id,
@@ -57,10 +57,10 @@ public sealed class CreateEqualExpenseHandlerTests
     [Fact]
     public async Task PreservesManuallySelectedOccurrenceTimeAsUtcMinute()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var payer = trip.AddParticipant("Alice");
         var store = new StubTripStore(trip);
-        var handler = new CreateEqualExpenseHandler(store);
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
         var occurredAt = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
 
         var result = await handler.HandleAsync(
@@ -83,11 +83,11 @@ public sealed class CreateEqualExpenseHandlerTests
     [Fact]
     public async Task CreatesExpenseWithMaximumExactCentAmount()
     {
-        var trip = new Trip("Maximum amount trip");
+        var trip = TestTrips.Create("Maximum amount trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         var store = new StubTripStore(trip);
-        var handler = new CreateEqualExpenseHandler(store);
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(
             trip.Id,
@@ -108,7 +108,7 @@ public sealed class CreateEqualExpenseHandlerTests
     public async Task ReturnsNullWithoutSavingWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new CreateEqualExpenseHandler(store);
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),
@@ -122,10 +122,10 @@ public sealed class CreateEqualExpenseHandlerTests
     [Fact]
     public async Task RejectsEmptySelectionWithoutSaving()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var payer = trip.AddParticipant("Alice");
         var store = new StubTripStore(trip);
-        var handler = new CreateEqualExpenseHandler(store);
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(
             trip.Id,
@@ -142,8 +142,8 @@ public sealed class CreateEqualExpenseHandlerTests
     public async Task RejectsInvalidCommandWithoutLoadingTrip(
         CreateEqualExpenseCommand command)
     {
-        var store = new StubTripStore(new Trip("Summer vacation"));
-        var handler = new CreateEqualExpenseHandler(store);
+        var store = new StubTripStore(TestTrips.Create("Summer vacation"));
+        var handler = new CreateEqualExpenseHandler(store, new AllowTripAccess());
 
         await Assert.ThrowsAnyAsync<ArgumentException>(() => handler.HandleAsync(
             Guid.NewGuid(),

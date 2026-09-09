@@ -9,9 +9,9 @@ public sealed class GetTripHandlerTests
     [Fact]
     public async Task ReturnsTripWhenItExists()
     {
-        var trip = new Trip("Summer vacation", "USD");
+        var trip = TestTrips.Create("Summer vacation", "USD");
         var store = new StubTripStore(trip);
-        var handler = new GetTripHandler(store);
+        var handler = new GetTripHandler(store, new AllowTripAccess());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
@@ -29,7 +29,7 @@ public sealed class GetTripHandlerTests
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new GetTripHandler(store);
+        var handler = new GetTripHandler(store, new AllowTripAccess());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
