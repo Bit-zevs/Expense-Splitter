@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "vite": "^7.1.4"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0"
   }
 }

@@ -10,13 +10,17 @@ public static class ParticipantBalanceCalculator
         ArgumentNullException.ThrowIfNull(trip);
 
         var balances = CreateBalances(trip);
-        var balancesByParticipantId = balances.ToDictionary(balance => balance.ParticipantId);
+        var balancesByParticipantId = balances.ToDictionary(balance => balance.ParticipantId, _ => new Contributions());
 
         foreach (var expense in trip.Expenses)
         {
             ApplyExpense(expense, balancesByParticipantId);
         }
 
+        foreach (var balance in balances)
+        {
+            balance.Amount = balancesByParticipantId[balance.ParticipantId].Calculate();
+        }
         return balances.AsReadOnly();
     }
 
@@ -41,33 +45,41 @@ public static class ParticipantBalanceCalculator
 
     private static void ApplyExpense(
         Expense expense,
-        IReadOnlyDictionary<Guid, ParticipantBalance> balances)
+        IDictionary<Guid, Contributions> balances)
     {
-        var changes = new Dictionary<Guid, decimal>();
-
         if (!balances.ContainsKey(expense.PaidByParticipantId))
-        {
             throw new InvalidOperationException("An expense payer does not belong to the trip.");
-        }
-
-        changes[expense.PaidByParticipantId] = expense.Amount;
-
+        balances[expense.PaidByParticipantId].Credits.Add(expense.Amount);
         foreach (var share in expense.Shares)
         {
             if (!balances.ContainsKey(share.ParticipantId))
-            {
-                throw new InvalidOperationException(
-                    "An expense share participant does not belong to the trip.");
-            }
-
-            changes.TryGetValue(share.ParticipantId, out var currentChange);
-            changes[share.ParticipantId] = MoneyLimits.AddExact(currentChange, -share.Amount);
+                throw new InvalidOperationException("An expense share participant does not belong to the trip.");
+            balances[share.ParticipantId].Debits.Add(share.Amount);
         }
+    }
+    private sealed class Contributions
+    {
+        public List<decimal> Credits { get; } = [];
+        public List<decimal> Debits { get; } = [];
 
-        foreach (var (participantId, change) in changes)
+        public decimal Calculate()
         {
-            var balance = balances[participantId];
-            balance.Amount = MoneyLimits.AddExact(balance.Amount, change);
+            // Cancel opposing single-expense amounts before summation, so a valid
+            // final balance does not depend on a transient overflow or expense order.
+            var credit = 0;
+            var debit = 0;
+            while (credit < Credits.Count && debit < Debits.Count)
+            {
+                var cancelled = Math.Min(Credits[credit], Debits[debit]);
+                Credits[credit] -= cancelled;
+                Debits[debit] -= cancelled;
+                if (Credits[credit] == 0) credit++;
+                if (Debits[debit] == 0) debit++;
+            }
+            var total = DecimalMoney.Zero;
+            for (; credit < Credits.Count; credit++) total += DecimalMoney.FromDecimal(Credits[credit]);
+            for (; debit < Debits.Count; debit++) total -= DecimalMoney.FromDecimal(Debits[debit]);
+            return total.ToDecimalExact();
         }
     }
 }

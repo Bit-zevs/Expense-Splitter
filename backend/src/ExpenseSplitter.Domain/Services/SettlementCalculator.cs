@@ -33,28 +33,28 @@ public static class SettlementCalculator
         {
             var creditor = creditors[creditorIndex];
             var debtor = debtors[debtorIndex];
-            var transferAmount = Math.Min(-debtor.Amount, creditor.Amount);
+            var transferAmount = DecimalMoney.Min(-debtor.Amount, creditor.Amount);
             transfers.Add(new SettlementTransfer(
                 debtor.ParticipantId,
                 creditor.ParticipantId,
-                transferAmount));
+                transferAmount.ToDecimalExact()));
 
             debtor.Amount += transferAmount;
             creditor.Amount -= transferAmount;
 
-            if (debtor.Amount == 0)
+            if (debtor.Amount == DecimalMoney.Zero)
             {
                 debtorIndex++;
             }
 
-            if (creditor.Amount == 0)
+            if (creditor.Amount == DecimalMoney.Zero)
             {
                 creditorIndex++;
             }
         }
 
-        if (creditors.Any(creditor => creditor.Amount != 0)
-            || debtors.Any(debtor => debtor.Amount != 0))
+        if (creditors.Any(creditor => creditor.Amount != DecimalMoney.Zero)
+            || debtors.Any(debtor => debtor.Amount != DecimalMoney.Zero))
         {
             throw new InvalidOperationException("Settlement did not clear all participant balances.");
         }
@@ -62,13 +62,13 @@ public static class SettlementCalculator
         return transfers.AsReadOnly();
     }
 
-    private sealed class BalancePosition(Guid participantId, decimal amount)
+    private sealed class BalancePosition(Guid participantId, DecimalMoney amount)
     {
         public Guid ParticipantId { get; } = participantId;
 
-        public decimal Amount { get; set; } = amount;
+        public DecimalMoney Amount { get; set; } = amount;
 
         public static BalancePosition FromBalance(ParticipantBalance balance) =>
-            new(balance.ParticipantId, balance.Amount);
+            new(balance.ParticipantId, DecimalMoney.FromDecimal(balance.Amount));
     }
 }

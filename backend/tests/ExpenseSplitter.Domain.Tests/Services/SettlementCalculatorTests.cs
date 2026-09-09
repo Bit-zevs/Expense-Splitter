@@ -8,6 +8,29 @@ namespace ExpenseSplitter.Domain.Tests.Services;
 public sealed class SettlementCalculatorTests
 {
     [Fact]
+    public void UsesParticipantIdOrderRatherThanLargestBalanceOrder()
+    {
+        var trip = new Trip("Trip");
+        for (var i = 0; i < 4; i++) trip.AddParticipant($"Person {i}");
+        var ids = trip.Participants.OrderBy(p => p.Id).Select(p => p.Id).ToArray();
+        trip.AddEqualExpense(4m, "First", ids[0], [ids[2]]);
+        trip.AddEqualExpense(2m, "Second", ids[0], [ids[3]]);
+        trip.AddEqualExpense(4m, "Third", ids[1], [ids[3]]);
+        Assert.Equal(new[] { (ids[2], ids[0], 4m), (ids[3], ids[0], 2m), (ids[3], ids[1], 4m) },
+            SettlementCalculator.Calculate(trip).Select(t => (t.FromParticipantId, t.ToParticipantId, t.Amount)));
+    }
+
+    [Fact]
+    public void CancelsOpposingExpensesBeforeAccumulationBeyondDecimalMagnitude()
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        for (var i = 0; i < 101; i++) trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Credit", payer.Id, [debtor.Id]);
+        for (var i = 0; i < 100; i++) trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Debit", debtor.Id, [payer.Id]);
+        Assert.Equal(MoneyLimits.MaximumAmount, Assert.Single(SettlementCalculator.Calculate(trip)).Amount);
+    }
+    [Fact]
     public void CalculatesExpectedTransfersForOneCreditorAndTwoDebtors()
     {
         var trip = new Trip("Trip");
@@ -114,16 +137,75 @@ public sealed class SettlementCalculatorTests
         Assert.Equal(payer.Id, transfer.ToParticipantId);
     }
 
-    [Fact]
-    public void RejectsAccumulatedBalanceOutsideExactCentRange()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(10)]
+    [InlineData(100)]
+    public void SupportsExactDerivedValuesAboveSingleExpenseLimit(int expenseCount)
     {
         var trip = new Trip("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First expense", payer.Id, new[] { debtor.Id });
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second expense", payer.Id, new[] { debtor.Id });
+        for (var index = 0; index < expenseCount; index++)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
+
+        var expected = MoneyLimits.MaximumAmount * expenseCount;
+        var balances = ParticipantBalanceCalculator.Calculate(trip);
+        Assert.Equal(expected, balances.Single(b => b.ParticipantId == payer.Id).Amount);
+        Assert.Equal(-expected, balances.Single(b => b.ParticipantId == debtor.Id).Amount);
+        Assert.Equal(expected, Assert.Single(SettlementCalculator.Calculate(trip)).Amount);
+    }
+
+    [Theory]
+    [InlineData(3)] // Within decimal's magnitude, but the exact cents cannot be represented.
+    [InlineData(101)] // Exceeds decimal.MaxValue itself.
+    public void RejectsDerivedValuesThatDecimalCannotRepresentExactly(int expenseCount)
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        for (var index = 0; index < expenseCount; index++)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
         Assert.Throws<OverflowException>(() => SettlementCalculator.Calculate(trip));
+    }
+
+    [Fact]
+    public void SettlementKeepsExactCentsInIntermediateRemaindersAboveExpenseLimit()
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        for (var index = 0; index < 100; index++)
+        {
+            var debtor = trip.AddParticipant($"Debtor {index}");
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
+        }
+
+        var balances = ParticipantBalanceCalculator.Calculate(trip);
+        Assert.Equal(decimal.MaxValue, balances.Single(b => b.ParticipantId == payer.Id).Amount);
+        var transfers = SettlementCalculator.CalculateFromBalances(balances);
+        Assert.Equal(100, transfers.Count);
+        Assert.All(transfers, transfer => Assert.Equal(MoneyLimits.MaximumAmount, transfer.Amount));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FinalBalanceIsIndependentOfIntermediateOverflow(bool counterExpenseFirst)
+    {
+        var trip = new Trip("Trip");
+        var payer = trip.AddParticipant("Payer");
+        var debtor = trip.AddParticipant("Debtor");
+        if (counterExpenseFirst)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Counter", debtor.Id, [payer.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);
+        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, [debtor.Id]);
+        if (!counterExpenseFirst)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Counter", debtor.Id, [payer.Id]);
+
+        var transfer = Assert.Single(SettlementCalculator.Calculate(trip));
+        Assert.Equal(MoneyLimits.MaximumAmount, transfer.Amount);
+        Assert.Equal(payer.Id, transfer.ToParticipantId);
     }
 
     [Fact]

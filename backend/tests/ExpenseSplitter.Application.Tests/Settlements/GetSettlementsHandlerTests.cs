@@ -62,8 +62,8 @@ public sealed class GetSettlementsHandlerTests
         var trip = new Trip("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);
-        trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Second", payer.Id, [debtor.Id]);
+        for (var index = 0; index < 101; index++)
+            trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
         var handler = new GetSettlementsHandler(new StubTripStore(trip));
 

@@ -40,7 +40,12 @@ dotnet ef database update --project backend/src/ExpenseSplitter.Infrastructure -
 The Development connection string is stored in .NET User Secrets, outside the repository.
 For other environments, configure `ConnectionStrings__ExpenseSplitter` externally.
 Migrations are applied explicitly, not automatically when the API starts.
-Money is represented as `decimal` end to end; persisted amounts use `numeric(29,2)`.
+Money uses `decimal` in backend contracts and `numeric(29,2)` in PostgreSQL.
+JSON monetary values are strings; the frontend uses `decimal.js` for decimal arithmetic.
+Backend money calculations use only `decimal`, including intermediate values.
+`BigInteger` is prohibited; this project will not migrate to it. Browser money must not
+use `BigInt` or JavaScript `Number`. Derived balances and transfers may
+exceed the single-expense limit when exactly representable as `decimal`, without rounding.
 The upper bound `792281625142643375935439503.35` guarantees exact cent arithmetic
 and reliable PostgreSQL round-trips.
 See [persistence design and usage](docs/persistence.md) for relationships, delete rules,

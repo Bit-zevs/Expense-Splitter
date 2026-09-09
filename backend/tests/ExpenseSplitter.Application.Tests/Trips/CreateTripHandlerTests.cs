@@ -24,6 +24,8 @@ public sealed class CreateTripHandlerTests
         Assert.Equal("EUR", trip.Currency);
         Assert.Equal(trip.CreatedAt, result.CreatedAt);
         Assert.Equal(cancellation.Token, store.CancellationToken);
+        Assert.Equal(cancellation.Token, store.SaveCancellationToken);
+        Assert.True(store.Saved);
     }
 
     [Fact]
@@ -73,6 +75,17 @@ public sealed class CreateTripHandlerTests
         public Trip? Trip { get; private set; }
 
         public CancellationToken CancellationToken { get; private set; }
+
+        public CancellationToken SaveCancellationToken { get; private set; }
+        public bool Saved { get; private set; }
+
+        public override Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            Assert.NotNull(Trip);
+            Saved = true;
+            SaveCancellationToken = cancellationToken;
+            return Task.CompletedTask;
+        }
 
         public override Task AddAsync(Trip trip, CancellationToken cancellationToken)
         {

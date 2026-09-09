@@ -22,6 +22,7 @@ public sealed class CreateTripHandler(ITripStore tripStore)
             command.Name!,
             command.Currency ?? Trip.DefaultCurrency);
         await tripStore.AddAsync(trip, cancellationToken);
+        await tripStore.SaveChangesAsync(cancellationToken);
 
         return new CreateTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt);
     }

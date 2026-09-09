@@ -11,7 +11,7 @@ internal abstract class TripStoreStub : ITripStore
     public virtual Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
-    public virtual Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+    public virtual Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
     public virtual Task<Trip?> FindWithParticipantsByIdAsync(
@@ -26,15 +26,15 @@ internal abstract class TripStoreStub : ITripStore
         Guid id,
         CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public virtual Task<Trip?> FindWithParticipantsForUpdateAsync(
+    public virtual Task<Trip?> FindWithParticipantsTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public virtual Task<Trip?> FindWithExpensesForUpdateAsync(
+    public virtual Task<Trip?> FindWithExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public virtual Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+    public virtual Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => throw new NotSupportedException();
 

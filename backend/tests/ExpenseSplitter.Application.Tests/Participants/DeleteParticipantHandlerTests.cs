@@ -25,7 +25,7 @@ public sealed class DeleteParticipantHandlerTests
     {
         public int SaveCount { get; private set; }
 
-        public override Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+        public override Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
             Guid id,
             CancellationToken cancellationToken) => Task.FromResult<Trip?>(trip);
 

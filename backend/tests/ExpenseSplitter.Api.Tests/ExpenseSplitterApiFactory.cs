@@ -7,13 +7,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ExpenseSplitter.Api.Tests;
 
-internal sealed class ExpenseSplitterApiFactory : WebApplicationFactory<Program>
+internal sealed class ExpenseSplitterApiFactory(string environment = "Testing") : WebApplicationFactory<Program>
 {
     public InMemoryTripStore Store { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(environment);
         builder.UseSetting(
             "ConnectionStrings:ExpenseSplitter",
             "Host=localhost;Database=not_used");
@@ -36,6 +36,7 @@ internal sealed class MissingConnectionStringApiFactory : WebApplicationFactory<
 
 internal sealed class InMemoryTripStore : ITripStore
 {
+    public bool FailSaveWithConflict { get; set; }
     private readonly Dictionary<Guid, Trip> _trips = [];
 
     public Task AddAsync(Trip trip, CancellationToken cancellationToken)
@@ -48,7 +49,7 @@ internal sealed class InMemoryTripStore : ITripStore
     public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
         FindTripAsync(id, cancellationToken);
 
-    public Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+    public Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken) =>
         FindTripAsync(id, cancellationToken);
 
     public Task<Trip?> FindWithParticipantsByIdAsync(
@@ -63,15 +64,15 @@ internal sealed class InMemoryTripStore : ITripStore
         Guid id,
         CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
-    public Task<Trip?> FindWithParticipantsForUpdateAsync(
+    public Task<Trip?> FindWithParticipantsTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
-    public Task<Trip?> FindWithExpensesForUpdateAsync(
+    public Task<Trip?> FindWithExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
-    public Task<Trip?> FindWithParticipantsAndExpensesForUpdateAsync(
+    public Task<Trip?> FindWithParticipantsAndExpensesTrackedAsync(
         Guid id,
         CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
@@ -96,6 +97,7 @@ internal sealed class InMemoryTripStore : ITripStore
     public Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (FailSaveWithConflict) throw new WriteConflictException(new InvalidOperationException("Concurrent write"));
         return Task.CompletedTask;
     }
 

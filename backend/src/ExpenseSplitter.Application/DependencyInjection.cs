@@ -1,3 +1,4 @@
+using ExpenseSplitter.Application.Trips.GetTripSnapshot;
 using Microsoft.Extensions.DependencyInjection;
 using ExpenseSplitter.Application.Balances.GetBalances;
 using ExpenseSplitter.Application.Expenses.CreateEqualExpense;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<CreateTripHandler>();
         services.AddScoped<DeleteTripHandler>();
         services.AddScoped<GetTripHandler>();
+        services.AddScoped<GetTripSnapshotHandler>();
         services.AddScoped<AddParticipantHandler>();
         services.AddScoped<DeleteParticipantHandler>();
         services.AddScoped<GetParticipantHandler>();

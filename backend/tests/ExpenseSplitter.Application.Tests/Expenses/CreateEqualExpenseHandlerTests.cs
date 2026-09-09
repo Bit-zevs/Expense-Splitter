@@ -182,7 +182,7 @@ public sealed class CreateEqualExpenseHandlerTests
 
         public List<CancellationToken> CancellationTokens { get; } = [];
 
-        public override Task<Trip?> FindWithParticipantsForUpdateAsync(
+        public override Task<Trip?> FindWithParticipantsTrackedAsync(
             Guid id,
             CancellationToken cancellationToken)
         {

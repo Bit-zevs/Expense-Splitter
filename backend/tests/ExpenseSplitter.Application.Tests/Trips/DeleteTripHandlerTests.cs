@@ -35,7 +35,7 @@ public sealed class DeleteTripHandlerTests
         public Trip? Removed { get; private set; }
         public int SaveCount { get; private set; }
 
-        public override Task<Trip?> FindForUpdateAsync(Guid id, CancellationToken cancellationToken) =>
+        public override Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(trip);
 
         public override void Remove(Trip value) => Removed = value;

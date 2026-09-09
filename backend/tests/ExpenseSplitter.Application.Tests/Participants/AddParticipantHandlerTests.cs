@@ -68,7 +68,7 @@ public sealed class AddParticipantHandlerTests
 
         public List<CancellationToken> CancellationTokens { get; } = [];
 
-        public override Task<Trip?> FindForUpdateAsync(
+        public override Task<Trip?> FindTrackedAsync(
             Guid id,
             CancellationToken cancellationToken)
         {
