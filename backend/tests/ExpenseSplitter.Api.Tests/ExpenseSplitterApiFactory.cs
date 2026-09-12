@@ -28,6 +28,11 @@ internal sealed class ExpenseSplitterApiFactory(string environment = "Testing") 
         return client;
     }
 
+    public HttpClient CreateRawClient() => base.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost")
+    });
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);

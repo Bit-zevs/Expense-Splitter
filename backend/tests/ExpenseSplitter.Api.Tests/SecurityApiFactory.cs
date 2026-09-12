@@ -74,9 +74,11 @@ internal sealed class SecurityApiFactory(string connectionString) : WebApplicati
 internal sealed class TestPasswordResetCodeSender : IEmailSender<ApplicationUser>
 {
     private readonly Dictionary<string, string> codes = new(StringComparer.OrdinalIgnoreCase);
+    public Exception? Failure { get; set; }
 
     public Task SendPasswordResetCodeAsync(ApplicationUser user, string email, string resetCode)
     {
+        if (Failure is not null) throw Failure;
         lock (codes) codes[email] = resetCode;
         return Task.CompletedTask;
     }

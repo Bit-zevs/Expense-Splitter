@@ -112,6 +112,26 @@ public sealed class EndpointTests
     }
 
     [Fact]
+    public async Task ForwardedForCannotCreateNewRateLimitPartitionsWithoutConfiguredProxy()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        using var client = factory.CreateRawClient();
+        HttpResponseMessage? lastResponse = null;
+
+        for (var i = 0; i < 31; i++)
+        {
+            lastResponse?.Dispose();
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/auth/csrf");
+            request.Headers.TryAddWithoutValidation("X-Forwarded-For", $"192.0.2.{i + 1}");
+            request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+            lastResponse = await client.SendAsync(request);
+        }
+
+        using (lastResponse)
+            Assert.Equal(HttpStatusCode.TooManyRequests, lastResponse!.StatusCode);
+    }
+
+    [Fact]
     public void ApplicationFailsToStartWithoutConnectionString()
     {
         using var factory = new MissingConnectionStringApiFactory();

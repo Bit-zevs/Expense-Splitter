@@ -48,7 +48,10 @@ Logout не отзывает немедленно ранее скопирова�
 (по умолчанию срок действия — один день), закодированный Base64Url и отправляемый
 через SMTP. Ответ `forgotPassword` одинаков для известного и неизвестного email.
 SMTP задаётся ключами `Email:Smtp:{Host,Port,UserName,Password,FromAddress,EnableSsl}`;
-пароль следует хранить в secrets/environment. Внешние провайдеры и 2FA пока не экспонируются.
+пароль следует хранить в secrets/environment. Ошибка конфигурации или доставки SMTP
+пишется в серверный error-log без email, но клиент всё равно получает generic `200` —
+сбой почты не должен превращать endpoint в проверку существования аккаунта.
+Внешние провайдеры и 2FA пока не экспонируются.
 
 Порядок вызовов из браузера/API-клиента:
 
@@ -72,9 +75,12 @@ Dev API доступен на `https://localhost:7050`; при необходи�
 Для production обязательна настройка `DataProtection:KeysPath` на постоянный защищённый
 volume; без неё API явно отказывается запускаться. При нескольких экземплярах путь
 и `DataProtection:ApplicationName` должны быть общими. До rate limiter вызывается
-Forwarded Headers middleware; доверенные адреса proxy перечисляются только явно в
-`ReverseProxy:KnownProxies` (например, `ReverseProxy__KnownProxies__0=10.0.0.10`).
-Заголовки неизвестных proxy игнорируются.
+Forwarded Headers middleware включается только при непустом `ReverseProxy:KnownProxies`.
+При пустом списке `X-Forwarded-*` вообще не обрабатываются; при непустом framework
+defaults заменяются только явно указанными адресами (например,
+`ReverseProxy__KnownProxies__0=10.0.0.10`). Заголовки неизвестных proxy игнорируются.
+Не включайте `ASPNETCORE_FORWARDEDHEADERS_ENABLED`: framework очищает trusted-списки
+при этой настройке, что противоречит модели безопасности приложения.
 В test host используются эфемерные ключи.
 
 ## Права

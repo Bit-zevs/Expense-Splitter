@@ -21,15 +21,20 @@ var parsedKnownProxies = knownProxies.Select(value =>
         ? address
         : throw new InvalidOperationException($"ReverseProxy:KnownProxies contains an invalid IP address: '{value}'."))
     .ToArray();
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
+var useForwardedHeaders = parsedKnownProxies.Length > 0;
+if (useForwardedHeaders)
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.ForwardLimit = 1;
-    options.RequireHeaderSymmetry = true;
-    options.KnownProxies.Clear();
-    options.KnownIPNetworks.Clear();
-    foreach (var address in parsedKnownProxies) options.KnownProxies.Add(address);
-});
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+        options.RequireHeaderSymmetry = true;
+        // Replacing the defaults is safe here because at least one trusted proxy was explicitly configured.
+        options.KnownProxies.Clear();
+        options.KnownIPNetworks.Clear();
+        foreach (var address in parsedKnownProxies) options.KnownProxies.Add(address);
+    });
+}
 
 var dataProtection = builder.Services.AddDataProtection()
     .SetApplicationName(builder.Configuration["DataProtection:ApplicationName"] ?? "ExpenseSplitter");
@@ -92,7 +97,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseForwardedHeaders();
+if (useForwardedHeaders) app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

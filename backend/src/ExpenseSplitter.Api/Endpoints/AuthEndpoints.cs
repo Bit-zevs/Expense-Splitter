@@ -49,7 +49,7 @@ public static class AuthEndpoints
             return result.Succeeded ? Results.Ok() : Results.Unauthorized();
         }).AllowAnonymous();
         auth.MapPost("/forgotPassword", async (ForgotPasswordRequest request,
-            UserManager<ApplicationUser> users, IEmailSender<ApplicationUser> sender,
+            UserManager<ApplicationUser> users, IEmailSender<ApplicationUser> sender, ILoggerFactory loggerFactory,
             CancellationToken cancellationToken) =>
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -60,9 +60,17 @@ public static class AuthEndpoints
             var user = await users.FindByEmailAsync(email);
             if (user is not null)
             {
-                var token = await users.GeneratePasswordResetTokenAsync(user);
-                var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-                await sender.SendPasswordResetCodeAsync(user, email, HtmlEncoder.Default.Encode(code));
+                try
+                {
+                    var token = await users.GeneratePasswordResetTokenAsync(user);
+                    var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+                    await sender.SendPasswordResetCodeAsync(user, email, HtmlEncoder.Default.Encode(code));
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    loggerFactory.CreateLogger("ExpenseSplitter.PasswordRecovery").LogError(
+                        exception, "Failed to send a password reset message for account {AccountId}.", user.Id);
+                }
             }
 
             // Deliberately identical for known and unknown accounts.

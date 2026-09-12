@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Net.Mail;
 using ExpenseSplitter.Infrastructure.Persistence;
 using ExpenseSplitter.Infrastructure.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,11 @@ public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClass
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/register",
             new { email, password = Password, displayName = "Recovery" })).StatusCode);
 
+        factory.PasswordResetCodes.Failure = new SmtpException("Unavailable");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/forgotPassword", new { email })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/forgotPassword",
+            new { email = "missing-during-outage@example.test" })).StatusCode);
+        factory.PasswordResetCodes.Failure = null;
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/forgotPassword", new { email })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/forgotPassword",
             new { email = "missing@example.test" })).StatusCode);
