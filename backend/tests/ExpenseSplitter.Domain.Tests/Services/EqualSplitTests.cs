@@ -158,7 +158,7 @@ public sealed class EqualSplitTests
     [Fact]
     public void SplittingForAllRejectsTripWithoutParticipants()
     {
-        var trip = new Trip("Empty trip");
+        var trip = TestTrips.Create("Empty trip");
 
         Assert.Throws<ArgumentException>(() =>
             trip.AddEqualExpenseForAll(10m, "Dinner", Guid.NewGuid()));
@@ -200,7 +200,7 @@ public sealed class EqualSplitTests
 
     private static (Trip Trip, Participant[] Participants) MakeTrip(int participantCount)
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participants = Enumerable.Range(1, participantCount)
             .Select(index => trip.AddParticipant($"Participant {index}"))
             .ToArray();

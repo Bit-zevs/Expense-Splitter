@@ -12,6 +12,11 @@ Participants belong to a trip, record expenses, and receive a clear settlement p
 - Delete trips, participants, and expenses.
 - Support equal splitting between all or selected participants.
 - Calculate each participant's balance and propose a simplified settlement plan.
+- Register/login with ASP.NET Core Identity cookies; trips are private to approved accounts.
+- Share a rotating join code, approve requests, and link an account to an existing phantom participant.
+
+Backend authentication and membership are documented in [accounts and access](docs/accounts.md).
+The existing frontend has not yet been adapted to login and CSRF tokens; protected API calls require them.
 
 ## Backend structure
 
@@ -74,9 +79,10 @@ npm install
 npm run dev
 ```
 
-The development server opens at `http://localhost:5173` and uses
-`http://localhost:5050` as the default API address. Set `VITE_API_BASE_URL` in
-`frontend/.env.local` when the API is hosted elsewhere. See
+Cookie authentication expects the development UI at `https://localhost:5173` and
+the API at `https://localhost:7050`; both must use HTTPS so `SameSite=Lax` remains
+same-site. Configure the frontend development server certificate and set
+`VITE_API_BASE_URL=https://localhost:7050` in `frontend/.env.local`. See
 [`frontend/README.md`](frontend/README.md) for the frontend commands.
 
 Integration tests require a running Docker engine with Linux containers. They create

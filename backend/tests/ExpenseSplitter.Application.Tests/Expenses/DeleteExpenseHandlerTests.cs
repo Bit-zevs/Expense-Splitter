@@ -9,12 +9,12 @@ public sealed class DeleteExpenseHandlerTests
     [Fact]
     public async Task RemovesExpenseThroughAggregateAndSaves()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var expense = trip.AddEqualExpenseForAll(10m, "Coffee", participant.Id);
         var store = new StubTripStore(trip);
 
-        var deleted = await new DeleteExpenseHandler(store)
+        var deleted = await new DeleteExpenseHandler(store, new AllowTripAccess())
             .HandleAsync(trip.Id, expense.Id, CancellationToken.None);
 
         Assert.True(deleted);

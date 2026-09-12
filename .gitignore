@@ -2,6 +2,7 @@
 [Bb]in/
 [Oo]bj/
 [Ll]og/
+[Tt]est[Rr]esults/
 
 # NuGet
 *.nupkg
@@ -21,3 +22,4 @@ _ReSharper.Caches/
 # Local configuration and secrets
 appsettings.Development.local.json
 secrets.json
+.local-backups/

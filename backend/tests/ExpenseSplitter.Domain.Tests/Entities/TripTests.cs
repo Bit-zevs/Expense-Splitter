@@ -10,7 +10,7 @@ public sealed class TripTests
     {
         var beforeCreation = DateTimeOffset.UtcNow;
 
-        var trip = new Trip("  Summer vacation  ");
+        var trip = TestTrips.Create("  Summer vacation  ");
 
         Assert.NotEqual(Guid.Empty, trip.Id);
         Assert.Equal("Summer vacation", trip.Name);
@@ -28,7 +28,7 @@ public sealed class TripTests
     [InlineData(" eur ")]
     public void ConstructorAcceptsSupportedCurrency(string currency)
     {
-        var trip = new Trip("Trip", currency);
+        var trip = TestTrips.Create("Trip", currency);
 
         Assert.Equal(currency.Trim().ToUpperInvariant(), trip.Currency);
     }
@@ -38,7 +38,7 @@ public sealed class TripTests
     [InlineData("GBP")]
     public void ConstructorRejectsUnsupportedCurrency(string currency)
     {
-        var error = Assert.Throws<ArgumentException>(() => new Trip("Trip", currency));
+        var error = Assert.Throws<ArgumentException>(() => TestTrips.Create("Trip", currency));
 
         Assert.Equal("currency", error.ParamName);
     }
@@ -49,13 +49,13 @@ public sealed class TripTests
     [InlineData("   ")]
     public void ConstructorRejectsMissingName(string? name)
     {
-        Assert.ThrowsAny<ArgumentException>(() => new Trip(name!));
+        Assert.ThrowsAny<ArgumentException>(() => TestTrips.Create(name!));
     }
 
     [Fact]
     public void AddParticipantCreatesParticipantAndAddsItToTrip()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
 
         var participant = trip.AddParticipant("  Alice  ");
 
@@ -67,7 +67,7 @@ public sealed class TripTests
     [Fact]
     public void ExpenseOccurrenceTimeUsesMinutePrecision()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
 
         var expense = trip.AddEqualExpenseForAll(12.34m, "Coffee", participant.Id);
@@ -83,7 +83,7 @@ public sealed class TripTests
     [InlineData("   ")]
     public void AddParticipantRejectsMissingName(string? name)
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
 
         Assert.ThrowsAny<ArgumentException>(() => trip.AddParticipant(name!));
         Assert.Empty(trip.Participants);
@@ -92,7 +92,7 @@ public sealed class TripTests
     [Fact]
     public void PublicCollectionsCannotBeModifiedDirectly()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         trip.AddParticipant("Alice");
 
         Assert.Throws<NotSupportedException>(
@@ -104,7 +104,7 @@ public sealed class TripTests
     [Fact]
     public void ExpenseOccurrenceTimeCanBeSetAndIsNormalizedToUtcMinute()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var localTime = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
 
@@ -116,7 +116,7 @@ public sealed class TripTests
     [Fact]
     public void RemoveExpenseRemovesOnlyRequestedExpense()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var removed = trip.AddEqualExpenseForAll(10m, "Removed", participant.Id);
         var kept = trip.AddEqualExpenseForAll(20m, "Kept", participant.Id);
@@ -130,7 +130,7 @@ public sealed class TripTests
     [Fact]
     public void RemoveParticipantAlsoRemovesExpensesInvolvingThem()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         var charlie = trip.AddParticipant("Charlie");

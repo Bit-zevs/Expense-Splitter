@@ -1,5 +1,9 @@
 # Хранение данных
 
+Аккаунты, коды, заявки, права и транзакции авторизации описаны в [accounts.md](accounts.md).
+Таблица ниже перечисляет финансовую часть; Identity и TripJoinRequests добавлены
+миграцией AddAccountsAndJoinRequests, требующей пустую dev-базу.
+
 Используется PostgreSQL 17 и Npgsql для EF Core 10. Конфигурации находятся в
 `ExpenseSplitter.Infrastructure/Persistence/Configurations`, миграции — рядом
 в `Persistence/Migrations`. Domain-сущности не содержат атрибутов EF. В калькуляторе балансов добавлена сортировка участников
@@ -9,8 +13,8 @@
 
 | Таблица | Ключ | Остальные столбцы |
 | --- | --- | --- |
-| `Trips` | `Id` | `Name`, `Currency`, `CreatedAt` |
-| `Participants` | `Id` | shadow `TripId`, `Name` |
+| `Trips` | `Id` | `Name`, `Currency`, `CreatedAt`, `OwnerAccountId`, `JoinCodeHash`, shadow `Revision` |
+| `Participants` | `Id` | shadow `TripId`, `Name`, nullable `AccountId` |
 | `Expenses` | `Id` | shadow `TripId`, `Amount`, `Description`, `PaidByParticipantId`, `SplitType`, `OccurredAt` |
 | `ExpenseParticipants` | `(ExpenseId, ParticipantId)` | `Amount` |
 
@@ -32,7 +36,7 @@ GUID создаёт Domain, для ключей отключена генера�
 
 ## Relationships и удаление
 
-Все FK обязательны. Каскады: `Trip → Participants`, `Trip → Expenses`,
+Финансовые FK обязательны, ссылка Participant → Account необязательна. Каскады: `Trip → Participants`, `Trip → Expenses`,
 `Expense → ExpenseParticipants`. Ссылки `Expense.PaidByParticipantId → Participant`
 и `ExpenseShare.ParticipantId → Participant` используют `NO ACTION`.
 
@@ -51,7 +55,8 @@ Deferred-настройка задаётся SQL миграции, поскол�
 миграцией необходимо сохранить `DEFERRABLE INITIALLY DEFERRED`.
 Синтаксис описан в [PostgreSQL ALTER TABLE](https://www.postgresql.org/docs/17/sql-altertable.html).
 
-Удаление расхода через `Trip.RemoveExpense` удаляет только его доли; участники
+Удаление владельца запрещено до передачи владения другому аккаунту в поездке.
+FK аккаунта настроены Restrict. Удаление расхода через `Trip.RemoveExpense` удаляет только его доли; участники
 остаются. `Trip.RemoveParticipant` сначала удаляет все расходы, где участник является
 плательщиком или входит в доли, а затем самого участника. Это сохраняет инварианты
 агрегата и позволяет выполнить удаление при `NO ACTION`-ссылках на участника.
@@ -165,8 +170,13 @@ FK и составной PK, каскады, запрет удаления ис�
 `SaveChangesAsync`. Методы `Find*TrackedAsync` открывают `RepeatableRead`-транзакцию,
 которая охватывает загрузку (включая все части split-query), изменение агрегата,
 сохранение и commit. Неуспешная запись откатывается, а выход без сохранения
-освобождает транзакцию при уничтожении scoped DbContext. Это не блокировка `FOR UPDATE`:
-конкурентные записи могут завершиться конфликтом сериализации.
+освобождает транзакцию при уничтожении scoped DbContext. Обработчики сначала вызывают
+`ITripAccess`: он открывает общий snapshot проверки прав и обновляет `Trips.Revision`,
+блокируя строку поездки. Обычные чтения вместо этого включают AccountId в SQL-предикат
+и не удерживают транзакцию; полный split-query открывает короткий RepeatableRead только
+на время материализации согласованного снимка. Устаревший snapshot после отзыва доступа или другой
+конкурентной записи завершается конфликтом сериализации. Сам ITripStore используется
+внутри write-транзакции; его account-scoped read-методы проверяют членство в запросе.
 Конкурентное удаление, конфликт сериализации и FK-конфликт записи возвращают HTTP 409;
 клиенту следует обновить поездку перед повторением операции.
 

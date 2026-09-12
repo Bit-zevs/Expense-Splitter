@@ -35,6 +35,9 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
 
         await using var context = new ExpenseSplitterDbContext(options);
         await context.Database.MigrateAsync(cancellationToken);
+        await context.Users.AddAsync(new Infrastructure.Identity.ApplicationUser
+        { Id = TestTrips.OwnerId, DisplayName = "Test owner" }, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
         return options;
     }
 }

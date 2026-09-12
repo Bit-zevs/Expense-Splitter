@@ -10,14 +10,14 @@ public sealed class GetSettlementsHandlerTests
     [Fact]
     public async Task ReturnsBalancesAndSettlementTransfers()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         var charlie = trip.AddParticipant("Charlie");
         trip.AddEqualExpenseForAll(90m, "Dinner", alice.Id);
         trip.AddEqualExpense(20m, "Taxi", bob.Id, [alice.Id]);
         var store = new StubTripStore(trip);
-        var handler = new GetSettlementsHandler(store);
+        var handler = new GetSettlementsHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
@@ -35,9 +35,9 @@ public sealed class GetSettlementsHandlerTests
     [Fact]
     public async Task ReturnsZeroBalancesAndNoTransfersWhenThereAreNoExpenses()
     {
-        var trip = new Trip("Summer vacation");
+        var trip = TestTrips.Create("Summer vacation");
         var alice = trip.AddParticipant("Alice");
-        var handler = new GetSettlementsHandler(new StubTripStore(trip));
+        var handler = new GetSettlementsHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(trip.Id, CancellationToken.None);
 
@@ -49,7 +49,7 @@ public sealed class GetSettlementsHandlerTests
     [Fact]
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
-        var handler = new GetSettlementsHandler(new StubTripStore(null));
+        var handler = new GetSettlementsHandler(new StubTripStore(null), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -59,13 +59,13 @@ public sealed class GetSettlementsHandlerTests
     [Fact]
     public async Task RejectsBalanceOutsideDecimalRange()
     {
-        var trip = new Trip("Extreme trip");
+        var trip = TestTrips.Create("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         for (var index = 0; index < 101; index++)
             trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
-        var handler = new GetSettlementsHandler(new StubTripStore(trip));
+        var handler = new GetSettlementsHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         await Assert.ThrowsAsync<OverflowException>(() =>
             handler.HandleAsync(trip.Id, CancellationToken.None));
@@ -74,11 +74,11 @@ public sealed class GetSettlementsHandlerTests
     [Fact]
     public async Task ReturnsMaximumExactCentBalance()
     {
-        var trip = new Trip("Large trip");
+        var trip = TestTrips.Create("Large trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
-        var handler = new GetSettlementsHandler(new StubTripStore(trip));
+        var handler = new GetSettlementsHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(trip.Id, CancellationToken.None);
 
@@ -120,6 +120,7 @@ public sealed class GetSettlementsHandlerTests
 
         public override Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
             Guid id,
+            Guid accountId,
             CancellationToken cancellationToken)
         {
             RequestedId = id;

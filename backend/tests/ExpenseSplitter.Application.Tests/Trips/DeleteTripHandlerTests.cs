@@ -9,10 +9,10 @@ public sealed class DeleteTripHandlerTests
     [Fact]
     public async Task RemovesExistingTripAndSaves()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var store = new StubTripStore(trip);
 
-        var deleted = await new DeleteTripHandler(store)
+        var deleted = await new DeleteTripHandler(store, new AllowTripAccess())
             .HandleAsync(trip.Id, CancellationToken.None);
 
         Assert.True(deleted);
@@ -25,7 +25,7 @@ public sealed class DeleteTripHandlerTests
     {
         var store = new StubTripStore(null);
 
-        Assert.False(await new DeleteTripHandler(store)
+        Assert.False(await new DeleteTripHandler(store, new AllowTripAccess())
             .HandleAsync(Guid.NewGuid(), CancellationToken.None));
         Assert.Equal(0, store.SaveCount);
     }

@@ -1,3 +1,4 @@
+using ExpenseSplitter.Application.Access;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Services;
 
@@ -8,7 +9,7 @@ public sealed record ParticipantBalanceResult(
     string Name,
     decimal Amount);
 
-public sealed class GetBalancesHandler(ITripStore tripStore)
+public sealed class GetBalancesHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<IReadOnlyCollection<ParticipantBalanceResult>?> HandleAsync(
         Guid tripId,
@@ -16,8 +17,7 @@ public sealed class GetBalancesHandler(ITripStore tripStore)
         CancellationToken cancellationToken)
     {
         var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(
-            tripId,
-            cancellationToken);
+            tripId, account.Id, cancellationToken);
         if (trip is null)
         {
             return null;

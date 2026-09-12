@@ -33,7 +33,7 @@ public sealed class EndpointTests
     public async Task WriteConflictsReturn409(string operation)
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var expense = trip.AddEqualExpense(1m, "Expense", payer.Id, [payer.Id]);
         factory.Store.Add(trip);
@@ -62,7 +62,7 @@ public sealed class EndpointTests
     public async Task MoneyStringsRoundTripExactly(string amount)
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         factory.Store.Add(trip);
@@ -86,15 +86,49 @@ public sealed class EndpointTests
         await using var factory = new ExpenseSplitterApiFactory();
         using var client = factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Options, "/trips");
-        request.Headers.Add("Origin", "http://localhost:5173");
+        request.Headers.Add("Origin", "https://localhost:5173");
         request.Headers.Add("Access-Control-Request-Method", "POST");
 
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(
-            "http://localhost:5173",
+            "https://localhost:5173",
             Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+    }
+
+    [Fact]
+    public async Task HttpFrontendOriginIsNotAllowedByCorsPolicy()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/trips");
+        request.Headers.Add("Origin", "http://localhost:5173");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
+    [Fact]
+    public async Task ForwardedForCannotCreateNewRateLimitPartitionsWithoutConfiguredProxy()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        using var client = factory.CreateRawClient();
+        HttpResponseMessage? lastResponse = null;
+
+        for (var i = 0; i < 31; i++)
+        {
+            lastResponse?.Dispose();
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/auth/csrf");
+            request.Headers.TryAddWithoutValidation("X-Forwarded-For", $"192.0.2.{i + 1}");
+            request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+            lastResponse = await client.SendAsync(request);
+        }
+
+        using (lastResponse)
+            Assert.Equal(HttpStatusCode.TooManyRequests, lastResponse!.StatusCode);
     }
 
     [Fact]
@@ -106,6 +140,18 @@ public sealed class EndpointTests
 
         Assert.Equal(
             "Connection string 'ExpenseSplitter' must be configured.",
+            error.Message);
+    }
+
+    [Fact]
+    public void ProductionApplicationFailsToStartWithoutPersistentDataProtectionKeys()
+    {
+        using var factory = new MissingProductionDataProtectionKeysApiFactory();
+
+        var error = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+
+        Assert.Equal(
+            "DataProtection:KeysPath must point to persistent storage in Production.",
             error.Message);
     }
 
@@ -125,12 +171,16 @@ public sealed class EndpointTests
         Assert.Equal("Summer trip", created.RootElement.GetProperty("name").GetString());
         Assert.Equal("EUR", created.RootElement.GetProperty("currency").GetString());
         Assert.True(created.RootElement.TryGetProperty("createdAt", out _));
+        Assert.NotEqual(Guid.Empty, created.RootElement.GetProperty("ownerParticipantId").GetGuid());
+        Assert.False(created.RootElement.TryGetProperty("ownerAccountId", out _));
         Assert.False(created.RootElement.TryGetProperty("CreatedAt", out _));
 
         using var getResponse = await client.GetAsync(response.Headers.Location);
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(created.RootElement.GetProperty("id").GetGuid(), fetched.GetProperty("id").GetGuid());
+        Assert.True(fetched.GetProperty("isOwner").GetBoolean());
+        Assert.False(fetched.TryGetProperty("ownerAccountId", out _));
         Assert.Equal(
             created.RootElement.GetProperty("createdAt").GetDateTimeOffset(),
             fetched.GetProperty("createdAt").GetDateTimeOffset());
@@ -156,7 +206,7 @@ public sealed class EndpointTests
     public async Task CreatedParticipantLocationTargetsRegisteredItemEndpoint()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
 
@@ -180,7 +230,7 @@ public sealed class EndpointTests
     public async Task CreatedExpenseLocationTargetsRegisteredItemEndpoint()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Alice");
         var participant = trip.AddParticipant("Bob");
         var occurredAt = new DateTimeOffset(2026, 9, 8, 14, 37, 42, TimeSpan.FromHours(5));
@@ -223,7 +273,7 @@ public sealed class EndpointTests
     public async Task DeleteEndpointsRemoveExpenseParticipantAndTrip()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         var firstExpense = trip.AddEqualExpense(10m, "First", alice.Id, [bob.Id]);
@@ -249,7 +299,7 @@ public sealed class EndpointTests
     public async Task DeleteEndpointsReturnNotFoundForMissingOrAlreadyDeletedEntities()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var expense = trip.AddEqualExpenseForAll(10m, "Coffee", participant.Id);
         factory.Store.Add(trip);
@@ -308,7 +358,7 @@ public sealed class EndpointTests
     public async Task ParticipantAndExpenseValidationReturnValidationProblems()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
@@ -349,7 +399,7 @@ public sealed class EndpointTests
     public async Task CollectionAndCalculationEndpointsReturnExpectedJson()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Alice");
         var debtor = trip.AddParticipant("Bob");
         trip.AddEqualExpense(12.34m, "Coffee", payer.Id, new[] { debtor.Id });
@@ -410,7 +460,7 @@ public sealed class EndpointTests
     public async Task InvalidBalanceQueryReturnsValidationProblem()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         factory.Store.Add(trip);
         using var client = factory.CreateClient();
@@ -428,7 +478,7 @@ public sealed class EndpointTests
     public async Task CalculationNotExactlyRepresentableAsDecimalReturnsUnprocessableEntity(int expenseCount)
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Extreme trip");
+        var trip = TestTrips.Create("Extreme trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         for (var index = 0; index < expenseCount; index++)
@@ -450,7 +500,7 @@ public sealed class EndpointTests
     public async Task DerivedMoneyAboveExpenseLimitReturnsExactStrings()
     {
         await using var factory = new ExpenseSplitterApiFactory();
-        var trip = new Trip("Large trip");
+        var trip = TestTrips.Create("Large trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(MoneyLimits.MaximumAmount, "First", payer.Id, [debtor.Id]);

@@ -16,8 +16,10 @@ public sealed class Trip
     // Required by EF Core.
     private Trip() { }
 
-    public Trip(string name, string currency = DefaultCurrency)
+    public Trip(string name, Guid ownerAccountId, string currency = DefaultCurrency)
     {
+        if (ownerAccountId == Guid.Empty) throw new ArgumentException("Owner is required.", nameof(ownerAccountId));
+        OwnerAccountId = ownerAccountId;
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
 
@@ -37,6 +39,42 @@ public sealed class Trip
     }
 
     public Guid Id { get; private set; }
+
+    public Guid OwnerAccountId { get; private set; }
+
+    public byte[]? JoinCodeHash { get; private set; }
+
+    public void SetJoinCodeHash(byte[] hash)
+    {
+        ArgumentNullException.ThrowIfNull(hash);
+        if (hash.Length != 32) throw new ArgumentException("Expected a SHA-256 hash.", nameof(hash));
+        JoinCodeHash = hash.ToArray();
+    }
+
+    public Participant AddAccountParticipant(Guid accountId, string name, Guid? phantomId = null)
+    {
+        if (accountId == Guid.Empty) throw new ArgumentException("Account is required.", nameof(accountId));
+        if (_participants.Any(p => p.AccountId == accountId))
+            throw new InvalidOperationException("Account already participates in this trip.");
+        Participant participant;
+        if (phantomId is { } id)
+        {
+            participant = _participants.SingleOrDefault(p => p.Id == id)
+                ?? throw new ArgumentException("Participant does not belong to this trip.", nameof(phantomId));
+            if (participant.AccountId is not null)
+                throw new InvalidOperationException("Participant already has an account.");
+        }
+        else participant = AddParticipant(name);
+        participant.LinkAccount(accountId);
+        return participant;
+    }
+
+    public void TransferOwnership(Guid accountId)
+    {
+        if (!_participants.Any(p => p.AccountId == accountId))
+            throw new ArgumentException("New owner must be a registered participant.", nameof(accountId));
+        OwnerAccountId = accountId;
+    }
 
     public string Name { get; private set; } = string.Empty;
 
@@ -120,6 +158,9 @@ public sealed class Trip
         {
             return false;
         }
+
+        if (participant.AccountId == OwnerAccountId)
+            throw new InvalidOperationException("Transfer ownership before removing the owner.");
 
         _expenses.RemoveAll(expense =>
             expense.PaidByParticipantId == participantId

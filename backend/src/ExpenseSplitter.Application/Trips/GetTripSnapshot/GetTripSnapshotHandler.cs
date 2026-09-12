@@ -1,3 +1,4 @@
+using ExpenseSplitter.Application.Access;
 using ExpenseSplitter.Application.Expenses;
 using ExpenseSplitter.Application.Participants;
 using ExpenseSplitter.Application.Settlements.GetSettlements;
@@ -13,11 +14,11 @@ public sealed record TripSnapshotResult(
     GetSettlementsResult? Settlement,
     string? CalculationError);
 
-public sealed class GetTripSnapshotHandler(ITripStore tripStore)
+public sealed class GetTripSnapshotHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<TripSnapshotResult?> HandleAsync(Guid tripId, CancellationToken cancellationToken)
     {
-        var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(tripId, account.Id, cancellationToken);
         if (trip is null) return null;
 
         GetSettlementsResult? settlement = null;
@@ -36,8 +37,9 @@ public sealed class GetTripSnapshotHandler(ITripStore tripStore)
         }
 
         return new TripSnapshotResult(
-            new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt),
-            trip.Participants.OrderBy(p => p.Id).Select(p => new ParticipantResult(p.Id, p.Name)).ToArray(),
+            new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, trip.OwnerAccountId == account.Id),
+            trip.Participants.OrderBy(p => p.Id).Select(p => new ParticipantResult(
+                p.Id, p.Name, p.AccountId is not null, p.AccountId == trip.OwnerAccountId)).ToArray(),
             trip.Expenses.OrderBy(e => e.OccurredAt).ThenBy(e => e.Id).Select(ExpenseResult.FromExpense).ToArray(),
             settlement, calculationError);
     }

@@ -15,7 +15,7 @@ public sealed class PersistenceModelTests
     {
         using var context = CreateContext();
         var model = context.Model;
-        Assert.Equal(4, model.GetEntityTypes().Count());
+        Assert.Equal(9, model.GetEntityTypes().Count());
         Assert.Null(model.FindEntityType(typeof(SettlementTransfer)));
 
         var trip = model.FindEntityType(typeof(Trip))!;
@@ -40,12 +40,12 @@ public sealed class PersistenceModelTests
         var model = context.GetService<IDesignTimeModel>().Model;
         var tables = model.GetRelationalModel().Tables.ToDictionary(table => table.Name);
 
-        Assert.Equal(4, tables.Count);
+        Assert.Equal(9, tables.Count);
         Assert.Equal("numeric(29,2)", tables["Expenses"].FindColumn("Amount")!.StoreType);
         Assert.Equal("numeric(29,2)", tables["ExpenseParticipants"].FindColumn("Amount")!.StoreType);
         Assert.Equal("character varying(3)", tables["Trips"].FindColumn("Currency")!.StoreType);
-        Assert.Equal(new[] { "TripId" },
-            Assert.Single(tables["Participants"].Indexes).Columns.Select(column => column.Name));
+        Assert.Contains(tables["Participants"].Indexes,
+            index => index.IsUnique && index.Columns.Select(c => c.Name).SequenceEqual(new[] { "TripId", "AccountId" }));
         Assert.Equal(2, tables["Expenses"].Indexes.Count());
         Assert.Contains(tables["Expenses"].Indexes,
             index => index.Columns.Select(column => column.Name).SequenceEqual(new[] { "TripId", "OccurredAt" }));
@@ -53,9 +53,10 @@ public sealed class PersistenceModelTests
             index => index.Columns.Select(column => column.Name).SequenceEqual(new[] { "PaidByParticipantId" }));
         Assert.Equal(new[] { "ParticipantId" },
             Assert.Single(tables["ExpenseParticipants"].Indexes).Columns.Select(column => column.Name));
-        Assert.Empty(tables["Trips"].Indexes);
+        Assert.Contains(tables["Trips"].Indexes, index => index.IsUnique && index.Columns.Single().Name == "JoinCodeHash");
 
-        Assert.All(model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys()), foreignKey =>
+        Assert.All(model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys())
+            .Where(fk => fk.PrincipalEntityType.ClrType.Assembly == typeof(Trip).Assembly), foreignKey =>
         {
             Assert.True(foreignKey.IsRequired);
             Assert.Equal(
@@ -74,7 +75,8 @@ public sealed class PersistenceModelTests
             [
                 "20260905185942_InitialPersistence",
                 "20260907123139_AddTripCurrency",
-                "20260908124458_RenameExpenseCreatedAtToOccurredAt"
+                "20260908124458_RenameExpenseCreatedAtToOccurredAt",
+                "20260909152747_AddAccountsAndJoinRequests"
             ],
             context.Database.GetMigrations());
         Assert.False(context.Database.HasPendingModelChanges());

@@ -1,3 +1,4 @@
+using ExpenseSplitter.Application.Access;
 using ExpenseSplitter.Application.Trips;
 using ExpenseSplitter.Domain.Services;
 
@@ -14,15 +15,14 @@ public sealed record GetSettlementsResult(
     IReadOnlyCollection<SettlementBalanceResult> Balances,
     IReadOnlyCollection<SettlementTransferResult> Transfers);
 
-public sealed class GetSettlementsHandler(ITripStore tripStore)
+public sealed class GetSettlementsHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<GetSettlementsResult?> HandleAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
         var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(
-            tripId,
-            cancellationToken);
+            tripId, account.Id, cancellationToken);
         if (trip is null)
         {
             return null;

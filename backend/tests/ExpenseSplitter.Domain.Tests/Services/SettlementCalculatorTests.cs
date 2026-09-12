@@ -10,7 +10,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void UsesParticipantIdOrderRatherThanLargestBalanceOrder()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         for (var i = 0; i < 4; i++) trip.AddParticipant($"Person {i}");
         var ids = trip.Participants.OrderBy(p => p.Id).Select(p => p.Id).ToArray();
         trip.AddEqualExpense(4m, "First", ids[0], [ids[2]]);
@@ -23,7 +23,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void CancelsOpposingExpensesBeforeAccumulationBeyondDecimalMagnitude()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         for (var i = 0; i < 101; i++) trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Credit", payer.Id, [debtor.Id]);
@@ -33,7 +33,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void CalculatesExpectedTransfersForOneCreditorAndTwoDebtors()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var ivan = trip.AddParticipant("Ivan");
         var oleg = trip.AddParticipant("Oleg");
         var masha = trip.AddParticipant("Masha");
@@ -57,7 +57,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void MatchesSeveralDebtorsAndCreditorsUntilAllBalancesAreCleared()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participants = Enumerable.Range(1, 4)
             .Select(index => trip.AddParticipant($"Participant {index}"))
             .OrderBy(participant => participant.Id)
@@ -86,7 +86,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void SplitsOneDebtorsPaymentBetweenSeveralCreditors()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         var charlie = trip.AddParticipant("Charlie");
@@ -110,7 +110,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void SupportsPayerWhoIsNotIncludedInExpenseShares()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(25.01m, "Ticket", payer.Id, new[] { debtor.Id });
@@ -125,7 +125,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void SupportsMaximumExactCentBalance()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, new[] { debtor.Id });
@@ -143,7 +143,7 @@ public sealed class SettlementCalculatorTests
     [InlineData(100)]
     public void SupportsExactDerivedValuesAboveSingleExpenseLimit(int expenseCount)
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         for (var index = 0; index < expenseCount; index++)
@@ -161,7 +161,7 @@ public sealed class SettlementCalculatorTests
     [InlineData(101)] // Exceeds decimal.MaxValue itself.
     public void RejectsDerivedValuesThatDecimalCannotRepresentExactly(int expenseCount)
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         for (var index = 0; index < expenseCount; index++)
@@ -173,7 +173,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void SettlementKeepsExactCentsInIntermediateRemaindersAboveExpenseLimit()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         for (var index = 0; index < 100; index++)
         {
@@ -193,7 +193,7 @@ public sealed class SettlementCalculatorTests
     [InlineData(true)]
     public void FinalBalanceIsIndependentOfIntermediateOverflow(bool counterExpenseFirst)
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         if (counterExpenseFirst)
@@ -211,7 +211,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void AllowsExpenseWithZeroNetChangeAtMaximumBalance()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
 
@@ -229,7 +229,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void PreservesCentWhenMaximumExpenseHasSmallCounterExpense()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Large expense", alice.Id, [bob.Id]);
@@ -245,7 +245,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void ReturnsNoTransfersWhenThereAreNoExpenses()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         trip.AddParticipant("Alice");
 
         var transfers = SettlementCalculator.Calculate(trip);
@@ -258,7 +258,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void ReturnsNoTransfersWhenParticipantPaidOnlyForThemselves()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         trip.AddEqualExpense(
             12.34m,
@@ -274,7 +274,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void DoesNotChangeTripAndReturnsSameResultWhenCalculatedAgain()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(10m, "Expense", payer.Id, new[] { debtor.Id });
@@ -289,7 +289,7 @@ public sealed class SettlementCalculatorTests
     [Fact]
     public void CalculatesFromExistingBalancesWithoutChangingThem()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(10m, "Expense", payer.Id, new[] { debtor.Id });

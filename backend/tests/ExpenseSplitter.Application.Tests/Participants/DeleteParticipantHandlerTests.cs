@@ -9,11 +9,11 @@ public sealed class DeleteParticipantHandlerTests
     [Fact]
     public async Task RemovesParticipantThroughAggregateAndSaves()
     {
-        var trip = new Trip("Trip");
+        var trip = TestTrips.Create("Trip");
         var participant = trip.AddParticipant("Alice");
         var store = new StubTripStore(trip);
 
-        var deleted = await new DeleteParticipantHandler(store)
+        var deleted = await new DeleteParticipantHandler(store, new AllowTripAccess())
             .HandleAsync(trip.Id, participant.Id, CancellationToken.None);
 
         Assert.True(deleted);
