@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<TripAccess>();
         services.AddScoped<ITripAccess>(sp => sp.GetRequiredService<TripAccess>());
         services.AddScoped<ITripMembershipService, TripMembershipService>();
+        services.Configure<SmtpOptions>(configuration.GetSection("Email:Smtp"));
+        services.AddScoped<IEmailSender<ApplicationUser>, SmtpIdentityEmailSender>();
         services.AddIdentityCore<ApplicationUser>(options =>
         {
             options.User.RequireUniqueEmail = true;

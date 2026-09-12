@@ -7,7 +7,7 @@ namespace ExpenseSplitter.Infrastructure.Persistence;
 
 internal sealed class TripAccess(ExpenseSplitterDbContext db, ICurrentAccount account) : ITripAccess
 {
-    public async Task RequireAsync(Guid tripId, bool ownerOnly, bool write, CancellationToken cancellationToken)
+    public async Task RequireWriteAsync(Guid tripId, bool ownerOnly, CancellationToken cancellationToken)
     {
         var accountId = account.Id;
         await BeginAsync(cancellationToken);
@@ -17,7 +17,7 @@ internal sealed class TripAccess(ExpenseSplitterDbContext db, ICurrentAccount ac
         if (ownerId is null) throw new AccessException(404);
         if (ownerOnly && ownerId != accountId) throw new AccessException(403);
         // A changed trip revision invalidates this permission snapshot before any mutation.
-        if (write) await LockAsync(tripId, cancellationToken);
+        await LockAsync(tripId, cancellationToken);
     }
 
     internal async Task BeginAsync(CancellationToken cancellationToken)

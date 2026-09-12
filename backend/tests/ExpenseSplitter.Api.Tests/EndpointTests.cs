@@ -86,15 +86,29 @@ public sealed class EndpointTests
         await using var factory = new ExpenseSplitterApiFactory();
         using var client = factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Options, "/trips");
-        request.Headers.Add("Origin", "http://localhost:5173");
+        request.Headers.Add("Origin", "https://localhost:5173");
         request.Headers.Add("Access-Control-Request-Method", "POST");
 
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(
-            "http://localhost:5173",
+            "https://localhost:5173",
             Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+    }
+
+    [Fact]
+    public async Task HttpFrontendOriginIsNotAllowedByCorsPolicy()
+    {
+        await using var factory = new ExpenseSplitterApiFactory();
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/trips");
+        request.Headers.Add("Origin", "http://localhost:5173");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
     }
 
     [Fact]
@@ -106,6 +120,18 @@ public sealed class EndpointTests
 
         Assert.Equal(
             "Connection string 'ExpenseSplitter' must be configured.",
+            error.Message);
+    }
+
+    [Fact]
+    public void ProductionApplicationFailsToStartWithoutPersistentDataProtectionKeys()
+    {
+        using var factory = new MissingProductionDataProtectionKeysApiFactory();
+
+        var error = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+
+        Assert.Equal(
+            "DataProtection:KeysPath must point to persistent storage in Production.",
             error.Message);
     }
 
@@ -125,12 +151,16 @@ public sealed class EndpointTests
         Assert.Equal("Summer trip", created.RootElement.GetProperty("name").GetString());
         Assert.Equal("EUR", created.RootElement.GetProperty("currency").GetString());
         Assert.True(created.RootElement.TryGetProperty("createdAt", out _));
+        Assert.NotEqual(Guid.Empty, created.RootElement.GetProperty("ownerParticipantId").GetGuid());
+        Assert.False(created.RootElement.TryGetProperty("ownerAccountId", out _));
         Assert.False(created.RootElement.TryGetProperty("CreatedAt", out _));
 
         using var getResponse = await client.GetAsync(response.Headers.Location);
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(created.RootElement.GetProperty("id").GetGuid(), fetched.GetProperty("id").GetGuid());
+        Assert.True(fetched.GetProperty("isOwner").GetBoolean());
+        Assert.False(fetched.TryGetProperty("ownerAccountId", out _));
         Assert.Equal(
             created.RootElement.GetProperty("createdAt").GetDateTimeOffset(),
             fetched.GetProperty("createdAt").GetDateTimeOffset());

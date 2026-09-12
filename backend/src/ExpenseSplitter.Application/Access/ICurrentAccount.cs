@@ -16,5 +16,5 @@ public sealed class ConflictException(string message) : Exception(message);
 // Writes hold a trip row lock until SaveChangesAsync (or scoped DbContext disposal).
 public interface ITripAccess
 {
-    Task RequireAsync(Guid tripId, bool ownerOnly, bool write, CancellationToken cancellationToken);
+    Task RequireWriteAsync(Guid tripId, bool ownerOnly, CancellationToken cancellationToken);
 }

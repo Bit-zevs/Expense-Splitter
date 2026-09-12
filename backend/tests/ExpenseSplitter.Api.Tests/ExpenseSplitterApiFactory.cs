@@ -66,6 +66,16 @@ internal sealed class MissingConnectionStringApiFactory : WebApplicationFactory<
     }
 }
 
+internal sealed class MissingProductionDataProtectionKeysApiFactory : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Production");
+        builder.UseSetting("ConnectionStrings:ExpenseSplitter", "Host=localhost;Database=not_used");
+        builder.UseSetting("DataProtection:KeysPath", string.Empty);
+    }
+}
+
 internal sealed class InMemoryTripStore : ITripStore
 {
     public bool FailSaveWithConflict { get; set; }
@@ -78,23 +88,20 @@ internal sealed class InMemoryTripStore : ITripStore
         return Task.CompletedTask;
     }
 
-    public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
+    public Task<Trip?> FindByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken) =>
         FindTripAsync(id, cancellationToken);
 
     public Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken) =>
         FindTripAsync(id, cancellationToken);
 
     public Task<Trip?> FindWithParticipantsByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
+        Guid id, Guid accountId, CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
     public Task<Trip?> FindWithExpensesByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
+        Guid id, Guid accountId, CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
     public Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
+        Guid id, Guid accountId, CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
     public Task<Trip?> FindWithParticipantsTrackedAsync(
         Guid id,
@@ -108,18 +115,10 @@ internal sealed class InMemoryTripStore : ITripStore
         Guid id,
         CancellationToken cancellationToken) => FindTripAsync(id, cancellationToken);
 
-    public async Task<Participant?> FindParticipantByIdAsync(
-        Guid tripId,
-        Guid participantId,
-        CancellationToken cancellationToken)
-    {
-        var trip = await FindTripAsync(tripId, cancellationToken);
-        return trip?.Participants.SingleOrDefault(participant => participant.Id == participantId);
-    }
-
     public async Task<Expense?> FindExpenseByIdAsync(
         Guid tripId,
         Guid expenseId,
+        Guid accountId,
         CancellationToken cancellationToken)
     {
         var trip = await FindTripAsync(tripId, cancellationToken);

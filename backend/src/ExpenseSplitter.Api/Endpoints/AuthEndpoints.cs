@@ -1,7 +1,10 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text;
+using System.Text.Encodings.Web;
 using ExpenseSplitter.Infrastructure.Identity;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace ExpenseSplitter.Api.Endpoints;
 
@@ -45,6 +48,53 @@ public static class AuthEndpoints
             var result = await signIn.PasswordSignInAsync(user, request.Password, request.RememberMe, lockoutOnFailure: true);
             return result.Succeeded ? Results.Ok() : Results.Unauthorized();
         }).AllowAnonymous();
+        auth.MapPost("/forgotPassword", async (ForgotPasswordRequest request,
+            UserManager<ApplicationUser> users, IEmailSender<ApplicationUser> sender,
+            CancellationToken cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ValidEmail(request.Email))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["A valid email is required."] });
+
+            var email = request.Email!.Trim();
+            var user = await users.FindByEmailAsync(email);
+            if (user is not null)
+            {
+                var token = await users.GeneratePasswordResetTokenAsync(user);
+                var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+                await sender.SendPasswordResetCodeAsync(user, email, HtmlEncoder.Default.Encode(code));
+            }
+
+            // Deliberately identical for known and unknown accounts.
+            return Results.Ok();
+        }).AllowAnonymous();
+        auth.MapPost("/resetPassword", async (ResetPasswordRequest request,
+            UserManager<ApplicationUser> users, CancellationToken cancellationToken) =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!ValidEmail(request.Email))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["A valid email is required."] });
+            if (string.IsNullOrWhiteSpace(request.ResetCode))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["resetCode"] = ["Reset code is required."] });
+            if (string.IsNullOrEmpty(request.NewPassword) || request.NewPassword.Length > 128)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["A password of at most 128 characters is required."] });
+
+            var user = await users.FindByEmailAsync(request.Email!.Trim());
+            IdentityResult result;
+            try
+            {
+                var token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(request.ResetCode));
+                result = user is null
+                    ? IdentityResult.Failed(users.ErrorDescriber.InvalidToken())
+                    : await users.ResetPasswordAsync(user, token, request.NewPassword);
+            }
+            catch (FormatException)
+            {
+                result = IdentityResult.Failed(users.ErrorDescriber.InvalidToken());
+            }
+
+            return result.Succeeded ? Results.Ok() : IdentityProblem(result);
+        }).AllowAnonymous();
         auth.MapPost("/logout", async (SignInManager<ApplicationUser> signIn) =>
         {
             await signIn.SignOutAsync();
@@ -68,7 +118,12 @@ public static class AuthEndpoints
     private static IResult IdentityProblem(IdentityResult result) => Results.ValidationProblem(
         result.Errors.GroupBy(e => e.Code).ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
 
+    private static bool ValidEmail(string? email) => !string.IsNullOrWhiteSpace(email)
+        && email.Length <= 256 && new EmailAddressAttribute().IsValid(email);
+
     public sealed record RegisterRequest(string? Email, string? Password, string? DisplayName);
     public sealed record LoginRequest(string? Email, string? Password, bool RememberMe = false);
+    public sealed record ForgotPasswordRequest(string? Email);
+    public sealed record ResetPasswordRequest(string? Email, string? ResetCode, string? NewPassword);
     public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
 }

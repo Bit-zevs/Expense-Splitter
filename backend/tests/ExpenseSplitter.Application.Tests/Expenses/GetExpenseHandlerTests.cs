@@ -14,7 +14,7 @@ public sealed class GetExpenseHandlerTests
         var expense = trip.AddEqualExpenseForAll(12.34m, "Coffee", participant.Id);
         var requestedTripId = Guid.NewGuid();
         var store = new StubTripStore(expense);
-        var handler = new GetExpenseHandler(store, new AllowTripAccess());
+        var handler = new GetExpenseHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -34,7 +34,7 @@ public sealed class GetExpenseHandlerTests
     [Fact]
     public async Task ReturnsNullWhenExpenseDoesNotExist()
     {
-        var handler = new GetExpenseHandler(new StubTripStore(null), new AllowTripAccess());
+        var handler = new GetExpenseHandler(new StubTripStore(null), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),
@@ -55,6 +55,7 @@ public sealed class GetExpenseHandlerTests
         public override Task<Expense?> FindExpenseByIdAsync(
             Guid tripId,
             Guid expenseId,
+            Guid accountId,
             CancellationToken cancellationToken)
         {
             RequestedTripId = tripId;

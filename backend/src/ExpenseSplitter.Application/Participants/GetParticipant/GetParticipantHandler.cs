@@ -3,21 +3,20 @@ using ExpenseSplitter.Application.Trips;
 
 namespace ExpenseSplitter.Application.Participants.GetParticipant;
 
-public sealed class GetParticipantHandler(ITripStore tripStore, ITripAccess access)
+public sealed class GetParticipantHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<ParticipantResult?> HandleAsync(
         Guid tripId,
         Guid participantId,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: false, write: false, cancellationToken);
-        var participant = await tripStore.FindParticipantByIdAsync(
-            tripId,
-            participantId,
-            cancellationToken);
+        var trip = await tripStore.FindWithParticipantsByIdAsync(
+            tripId, account.Id, cancellationToken);
+        var participant = trip?.Participants.SingleOrDefault(p => p.Id == participantId);
 
         return participant is null
             ? null
-            : new ParticipantResult(participant.Id, participant.Name, participant.AccountId);
+            : new ParticipantResult(participant.Id, participant.Name, participant.AccountId is not null,
+                participant.AccountId == trip!.OwnerAccountId);
     }
 }

@@ -10,7 +10,7 @@ public sealed class DeleteParticipantHandler(ITripStore tripStore, ITripAccess a
         Guid participantId,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: true, cancellationToken);
         var trip = await tripStore.FindWithParticipantsAndExpensesTrackedAsync(
             tripId,
             cancellationToken);

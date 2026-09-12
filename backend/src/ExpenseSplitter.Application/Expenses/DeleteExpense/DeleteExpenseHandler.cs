@@ -10,7 +10,7 @@ public sealed class DeleteExpenseHandler(ITripStore tripStore, ITripAccess acces
         Guid expenseId,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: false, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: false, cancellationToken);
         var trip = await tripStore.FindWithExpensesTrackedAsync(tripId, cancellationToken);
         if (trip is null || !trip.RemoveExpense(expenseId))
         {

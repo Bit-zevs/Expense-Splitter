@@ -9,8 +9,41 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using System.Threading.RateLimiting;
 using System.Security.Claims;
+using System.Net;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var knownProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
+var parsedKnownProxies = knownProxies.Select(value =>
+    IPAddress.TryParse(value, out var address)
+        ? address
+        : throw new InvalidOperationException($"ReverseProxy:KnownProxies contains an invalid IP address: '{value}'."))
+    .ToArray();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.RequireHeaderSymmetry = true;
+    options.KnownProxies.Clear();
+    options.KnownIPNetworks.Clear();
+    foreach (var address in parsedKnownProxies) options.KnownProxies.Add(address);
+});
+
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName(builder.Configuration["DataProtection:ApplicationName"] ?? "ExpenseSplitter");
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    var absoluteKeysPath = Path.GetFullPath(dataProtectionKeysPath, builder.Environment.ContentRootPath);
+    Directory.CreateDirectory(absoluteKeysPath);
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(absoluteKeysPath));
+}
+else if (builder.Environment.IsProduction())
+{
+    throw new InvalidOperationException("DataProtection:KeysPath must point to persistent storage in Production.");
+}
 
 builder.Services.AddOpenApi(options => options.AddSchemaTransformer((schema, context, cancellationToken) =>
 {
@@ -59,6 +92,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

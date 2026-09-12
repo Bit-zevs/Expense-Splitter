@@ -13,10 +13,11 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
         await dbContext.Trips.AddAsync(trip, cancellationToken);
     }
 
-    public Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Trips
-            .AsNoTracking()
-            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+    public Task<Trip?> FindByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken) =>
+        dbContext.Trips.AsNoTracking().SingleOrDefaultAsync(
+            trip => trip.Id == id && (trip.OwnerAccountId == accountId
+                || trip.Participants.Any(p => p.AccountId == accountId)),
+            cancellationToken);
 
     public async Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -25,38 +26,40 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
     }
 
     public Task<Trip?> FindWithParticipantsByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken) => dbContext.Trips
-            .AsNoTracking()
-            .Include(trip => trip.Participants)
-            .AsSingleQuery()
-            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+        Guid id, Guid accountId, CancellationToken cancellationToken) => dbContext.Trips
+        .AsNoTracking()
+        .Include(trip => trip.Participants)
+        .AsSingleQuery()
+        .SingleOrDefaultAsync(
+            trip => trip.Id == id && (trip.OwnerAccountId == accountId
+                || trip.Participants.Any(p => p.AccountId == accountId)),
+            cancellationToken);
 
     public Task<Trip?> FindWithExpensesByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken) => dbContext.Trips
-            .AsNoTracking()
-            .Include(trip => trip.Expenses)
-            .AsSingleQuery()
-            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
+        Guid id, Guid accountId, CancellationToken cancellationToken) => dbContext.Trips
+        .AsNoTracking()
+        .Include(trip => trip.Expenses)
+        .AsSingleQuery()
+        .SingleOrDefaultAsync(
+            trip => trip.Id == id && (trip.OwnerAccountId == accountId
+                || trip.Participants.Any(p => p.AccountId == accountId)),
+            cancellationToken);
 
     public async Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken)
+        Guid id, Guid accountId, CancellationToken cancellationToken)
     {
-        var ownsTransaction = dbContext.Database.CurrentTransaction is null;
-        await using var transaction = ownsTransaction
-            ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
-            : null;
-
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead, cancellationToken);
         var trip = await dbContext.Trips
             .AsNoTracking()
-            .Include(trip => trip.Participants)
-            .Include(trip => trip.Expenses)
+            .Include(t => t.Participants)
+            .Include(t => t.Expenses)
             .AsSplitQuery()
-            .SingleOrDefaultAsync(trip => trip.Id == id, cancellationToken);
-
-        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            .SingleOrDefaultAsync(
+                t => t.Id == id && (t.OwnerAccountId == accountId
+                    || t.Participants.Any(p => p.AccountId == accountId)),
+                cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return trip;
     }
 
@@ -102,26 +105,16 @@ internal sealed class TripStore(ExpenseSplitterDbContext dbContext) : ITripStore
             await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
     }
 
-    public Task<Participant?> FindParticipantByIdAsync(
-        Guid tripId,
-        Guid participantId,
-        CancellationToken cancellationToken) => dbContext.Participants
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                participant => participant.Id == participantId
-                    && EF.Property<Guid>(participant, "TripId") == tripId,
-                cancellationToken);
-
     public Task<Expense?> FindExpenseByIdAsync(
-        Guid tripId,
-        Guid expenseId,
-        CancellationToken cancellationToken) => dbContext.Expenses
-            .AsNoTracking()
+        Guid tripId, Guid expenseId, Guid accountId, CancellationToken cancellationToken) =>
+        dbContext.Expenses.AsNoTracking()
             .Include(expense => expense.Shares)
             .AsSingleQuery()
             .SingleOrDefaultAsync(
                 expense => expense.Id == expenseId
-                    && EF.Property<Guid>(expense, "TripId") == tripId,
+                    && EF.Property<Guid>(expense, "TripId") == tripId
+                    && dbContext.Trips.Any(t => t.Id == tripId && (t.OwnerAccountId == accountId
+                        || t.Participants.Any(p => p.AccountId == accountId))),
                 cancellationToken);
 
     public void Remove(Trip trip)

@@ -2,7 +2,7 @@ using ExpenseSplitter.Application.Participants;
 
 namespace ExpenseSplitter.Application.Access;
 
-public sealed record JoinRequestResult(Guid Id, Guid TripId, DateTimeOffset RequestedAt);
+public sealed record JoinRequestResult(Guid Id, DateTimeOffset RequestedAt);
 public sealed record PendingMemberResult(Guid Id, string DisplayName, DateTimeOffset RequestedAt);
 
 public interface ITripMembershipService
@@ -14,5 +14,5 @@ public interface ITripMembershipService
     Task<IReadOnlyList<PendingMemberResult>> ListAsync(Guid tripId, CancellationToken cancellationToken);
     Task<ParticipantResult> ApproveAsync(Guid tripId, Guid requestId, Guid? participantId, CancellationToken cancellationToken);
     Task RejectAsync(Guid tripId, Guid requestId, CancellationToken cancellationToken);
-    Task TransferOwnerAsync(Guid tripId, Guid accountId, CancellationToken cancellationToken);
+    Task TransferOwnerAsync(Guid tripId, Guid participantId, CancellationToken cancellationToken);
 }

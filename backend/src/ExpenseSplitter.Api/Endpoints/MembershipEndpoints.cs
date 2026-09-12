@@ -34,12 +34,12 @@ public static class MembershipEndpoints
         });
         trips.MapPut("/owner", async (Guid tripId, OwnerRequest request, ITripMembershipService service, CancellationToken ct) =>
         {
-            await service.TransferOwnerAsync(tripId, request.AccountId, ct);
+            await service.TransferOwnerAsync(tripId, request.ParticipantId, ct);
             return TypedResults.NoContent();
         });
     }
 
     public sealed record JoinRequest(string? Code);
     public sealed record ApproveRequest(Guid? ParticipantId = null);
-    public sealed record OwnerRequest(Guid AccountId);
+    public sealed record OwnerRequest(Guid ParticipantId);
 }

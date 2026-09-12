@@ -13,7 +13,7 @@ public sealed class GetParticipantsHandlerTests
         var alice = trip.AddParticipant("Alice");
         var bob = trip.AddParticipant("Bob");
         var store = new StubTripStore(trip);
-        var handler = new GetParticipantsHandler(store, new AllowTripAccess());
+        var handler = new GetParticipantsHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
@@ -30,7 +30,7 @@ public sealed class GetParticipantsHandlerTests
     public async Task ReturnsEmptyCollectionWhenTripHasNoParticipants()
     {
         var store = new StubTripStore(TestTrips.Create("Summer vacation"));
-        var handler = new GetParticipantsHandler(store, new AllowTripAccess());
+        var handler = new GetParticipantsHandler(store, new TestCurrentAccount());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -42,7 +42,7 @@ public sealed class GetParticipantsHandlerTests
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new GetParticipantsHandler(store, new AllowTripAccess());
+        var handler = new GetParticipantsHandler(store, new TestCurrentAccount());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -57,6 +57,7 @@ public sealed class GetParticipantsHandlerTests
 
         public override Task<Trip?> FindWithParticipantsByIdAsync(
             Guid id,
+            Guid accountId,
             CancellationToken cancellationToken)
         {
             RequestedId = id;

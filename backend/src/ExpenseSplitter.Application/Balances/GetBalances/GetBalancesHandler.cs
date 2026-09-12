@@ -9,17 +9,15 @@ public sealed record ParticipantBalanceResult(
     string Name,
     decimal Amount);
 
-public sealed class GetBalancesHandler(ITripStore tripStore, ITripAccess access)
+public sealed class GetBalancesHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<IReadOnlyCollection<ParticipantBalanceResult>?> HandleAsync(
         Guid tripId,
         IReadOnlyCollection<Guid>? participantIds,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: false, write: false, cancellationToken);
         var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(
-            tripId,
-            cancellationToken);
+            tripId, account.Id, cancellationToken);
         if (trip is null)
         {
             return null;

@@ -17,7 +17,7 @@ public sealed class GetSettlementsHandlerTests
         trip.AddEqualExpenseForAll(90m, "Dinner", alice.Id);
         trip.AddEqualExpense(20m, "Taxi", bob.Id, [alice.Id]);
         var store = new StubTripStore(trip);
-        var handler = new GetSettlementsHandler(store, new AllowTripAccess());
+        var handler = new GetSettlementsHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
@@ -37,7 +37,7 @@ public sealed class GetSettlementsHandlerTests
     {
         var trip = TestTrips.Create("Summer vacation");
         var alice = trip.AddParticipant("Alice");
-        var handler = new GetSettlementsHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetSettlementsHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(trip.Id, CancellationToken.None);
 
@@ -49,7 +49,7 @@ public sealed class GetSettlementsHandlerTests
     [Fact]
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
-        var handler = new GetSettlementsHandler(new StubTripStore(null), new AllowTripAccess());
+        var handler = new GetSettlementsHandler(new StubTripStore(null), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -65,7 +65,7 @@ public sealed class GetSettlementsHandlerTests
         for (var index = 0; index < 101; index++)
             trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
-        var handler = new GetSettlementsHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetSettlementsHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         await Assert.ThrowsAsync<OverflowException>(() =>
             handler.HandleAsync(trip.Id, CancellationToken.None));
@@ -78,7 +78,7 @@ public sealed class GetSettlementsHandlerTests
         var payer = trip.AddParticipant("Payer");
         var debtor = trip.AddParticipant("Debtor");
         trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
-        var handler = new GetSettlementsHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetSettlementsHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(trip.Id, CancellationToken.None);
 
@@ -120,6 +120,7 @@ public sealed class GetSettlementsHandlerTests
 
         public override Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
             Guid id,
+            Guid accountId,
             CancellationToken cancellationToken)
         {
             RequestedId = id;

@@ -6,16 +6,17 @@ public interface ITripStore
 {
     Task AddAsync(Trip trip, CancellationToken cancellationToken);
 
-    Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<Trip?> FindByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken);
 
     Task<Trip?> FindTrackedAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<Trip?> FindWithParticipantsByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<Trip?> FindWithParticipantsByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken);
 
-    Task<Trip?> FindWithExpensesByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<Trip?> FindWithExpensesByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken);
 
     Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
         Guid id,
+        Guid accountId,
         CancellationToken cancellationToken);
 
     Task<Trip?> FindWithParticipantsTrackedAsync(
@@ -30,14 +31,10 @@ public interface ITripStore
         Guid id,
         CancellationToken cancellationToken);
 
-    Task<Participant?> FindParticipantByIdAsync(
-        Guid tripId,
-        Guid participantId,
-        CancellationToken cancellationToken);
-
     Task<Expense?> FindExpenseByIdAsync(
         Guid tripId,
         Guid expenseId,
+        Guid accountId,
         CancellationToken cancellationToken);
 
     void Remove(Trip trip);

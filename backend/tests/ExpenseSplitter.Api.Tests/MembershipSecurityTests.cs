@@ -13,6 +13,34 @@ namespace ExpenseSplitter.Api.Tests;
 public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClassFixture<PostgreSqlFixture>
 {
     [Fact]
+    public async Task PasswordCanBeResetWithoutRevealingWhetherAccountExists()
+    {
+        await using var factory = await CreateAsync(database);
+        using var client = factory.Browser();
+        await RefreshCsrfAsync(client);
+        var email = "recovery@example.test";
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/register",
+            new { email, password = Password, displayName = "Recovery" })).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/forgotPassword", new { email })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/forgotPassword",
+            new { email = "missing@example.test" })).StatusCode);
+        Assert.Equal(1, factory.PasswordResetCodes.Count);
+
+        var newPassword = "Reset-password-2026!";
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/auth/resetPassword", new
+        {
+            email,
+            resetCode = factory.PasswordResetCodes.Get(email),
+            newPassword
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await client.PostAsJsonAsync("/auth/login", new { email, password = Password })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.PostAsJsonAsync("/auth/login", new { email, password = newPassword })).StatusCode);
+    }
+
+    [Fact]
     public async Task IdentityEnforcesUniqueEmailPasswordChangesAndLockout()
     {
         await using var factory = await CreateAsync(database);
@@ -102,6 +130,7 @@ public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClass
         { amount = "12.34", description = "Dinner", paidByParticipantId = phantomId, participantIds = new[] { phantomId } });
         var request = await PostAsync(applicant, "/trip-join-requests", new { code = trip.GetProperty("joinCode").GetString()!.ToLowerInvariant() });
         var requestId = request.GetProperty("id").GetGuid();
+        Assert.False(request.TryGetProperty("tripId", out _));
         foreach (var suffix in new[] { "", "/snapshot", "/expenses", "/participants", "/balances", "/settlements",
                      $"/participants/{phantomId}", $"/expenses/{expense.GetProperty("id").GetGuid()}" })
             Assert.Equal(HttpStatusCode.NotFound, (await applicant.GetAsync($"/trips/{id}{suffix}")).StatusCode);
@@ -114,7 +143,8 @@ public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClass
         var participant = await PostAsync(owner, $"/trips/{id}/join-requests/{requestId}/approve", new { participantId = phantomId });
         Assert.Equal(phantomId, participant.GetProperty("id").GetGuid());
         Assert.Equal("Local name", participant.GetProperty("name").GetString());
-        Assert.NotEqual(Guid.Empty, participant.GetProperty("accountId").GetGuid());
+        Assert.True(participant.GetProperty("isRegistered").GetBoolean());
+        Assert.False(participant.TryGetProperty("accountId", out _));
         var snapshot = await applicant.GetFromJsonAsync<JsonElement>($"/trips/{id}/snapshot");
         Assert.Single(snapshot.GetProperty("expenses").EnumerateArray());
         Assert.Equal("12.34", snapshot.GetProperty("expenses")[0].GetProperty("amount").GetString());
@@ -132,7 +162,6 @@ public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClass
         var request = await PostAsync(member, "/trip-join-requests", new { code = trip.GetProperty("joinCode").GetString() });
         var participant = await PostAsync(owner, $"/trips/{id}/join-requests/{request.GetProperty("id").GetGuid()}/approve", new { });
         var participantId = participant.GetProperty("id").GetGuid();
-        var accountId = participant.GetProperty("accountId").GetGuid();
         Assert.Equal("Member", participant.GetProperty("name").GetString());
         Assert.Equal(HttpStatusCode.Forbidden, (await member.PostAsJsonAsync($"/trips/{id}/participants", new { name = "Phantom" })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.DeleteAsync($"/trips/{id}/participants/{participantId}")).StatusCode);
@@ -143,10 +172,12 @@ public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClass
         { amount = "10", description = "Dinner", paidByParticipantId = participantId });
         Assert.Equal(HttpStatusCode.NoContent, (await member.DeleteAsync($"/trips/{id}/expenses/{expenses.GetProperty("id").GetGuid()}")).StatusCode);
         var people = await owner.GetFromJsonAsync<JsonElement>($"/trips/{id}/participants");
-        var ownerParticipantId = people.EnumerateArray().Single(p => p.GetProperty("accountId").GetGuid() == trip.GetProperty("ownerAccountId").GetGuid()).GetProperty("id").GetGuid();
+        Assert.All(people.EnumerateArray(), p => Assert.False(p.TryGetProperty("accountId", out _)));
+        Assert.False(trip.TryGetProperty("ownerAccountId", out _));
+        var ownerParticipantId = people.EnumerateArray().Single(p => p.GetProperty("isOwner").GetBoolean()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.Conflict, (await owner.DeleteAsync($"/trips/{id}/participants/{ownerParticipantId}")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await owner.PutAsJsonAsync($"/trips/{id}/owner", new { accountId = Guid.NewGuid() })).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await owner.PutAsJsonAsync($"/trips/{id}/owner", new { accountId })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.PutAsJsonAsync($"/trips/{id}/owner", new { participantId = Guid.NewGuid() })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.PutAsJsonAsync($"/trips/{id}/owner", new { participantId })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await owner.PostAsJsonAsync($"/trips/{id}/join-code", new { })).StatusCode);
         await PostAsync(member, $"/trips/{id}/expenses", new { amount = "20", description = "Shared", paidByParticipantId = participantId });
         await PostAsync(member, $"/trips/{id}/expenses", new { amount = "3", description = "Keep", paidByParticipantId = participantId, participantIds = new[] { participantId } });
@@ -157,7 +188,7 @@ public sealed class MembershipSecurityTests(PostgreSqlFixture database) : IClass
         Assert.Equal("Keep", remaining[0].GetProperty("description").GetString());
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ExpenseSplitterDbContext>();
-        Assert.True(await db.Users.AnyAsync(u => u.Id == trip.GetProperty("ownerAccountId").GetGuid()));
+        Assert.True(await db.Users.AnyAsync(u => u.DisplayName == "Owner"));
     }
 
     [Fact]

@@ -10,7 +10,7 @@ public sealed record CreateTripResult(
     string Name,
     string Currency,
     DateTimeOffset CreatedAt,
-    Guid OwnerAccountId,
+    Guid OwnerParticipantId,
     string JoinCode);
 
 public sealed class CreateTripHandler(ITripStore tripStore, ICurrentAccount account)
@@ -25,12 +25,12 @@ public sealed class CreateTripHandler(ITripStore tripStore, ICurrentAccount acco
             command.Name!,
             account.Id,
             command.Currency ?? Trip.DefaultCurrency);
-        trip.AddAccountParticipant(account.Id, account.DisplayName);
+        var owner = trip.AddAccountParticipant(account.Id, account.DisplayName);
         var code = JoinCode.Generate();
         trip.SetJoinCodeHash(JoinCode.Hash(code));
         await tripStore.AddAsync(trip, cancellationToken);
         await tripStore.SaveChangesAsync(cancellationToken);
 
-        return new CreateTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, trip.OwnerAccountId, code);
+        return new CreateTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, owner.Id, code);
     }
 }

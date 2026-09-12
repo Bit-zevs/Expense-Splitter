@@ -14,12 +14,11 @@ public sealed record TripSnapshotResult(
     GetSettlementsResult? Settlement,
     string? CalculationError);
 
-public sealed class GetTripSnapshotHandler(ITripStore tripStore, ITripAccess access)
+public sealed class GetTripSnapshotHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<TripSnapshotResult?> HandleAsync(Guid tripId, CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: false, write: false, cancellationToken);
-        var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(tripId, cancellationToken);
+        var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(tripId, account.Id, cancellationToken);
         if (trip is null) return null;
 
         GetSettlementsResult? settlement = null;
@@ -38,8 +37,9 @@ public sealed class GetTripSnapshotHandler(ITripStore tripStore, ITripAccess acc
         }
 
         return new TripSnapshotResult(
-            new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, trip.OwnerAccountId),
-            trip.Participants.OrderBy(p => p.Id).Select(p => new ParticipantResult(p.Id, p.Name, p.AccountId)).ToArray(),
+            new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, trip.OwnerAccountId == account.Id),
+            trip.Participants.OrderBy(p => p.Id).Select(p => new ParticipantResult(
+                p.Id, p.Name, p.AccountId is not null, p.AccountId == trip.OwnerAccountId)).ToArray(),
             trip.Expenses.OrderBy(e => e.OccurredAt).ThenBy(e => e.Id).Select(ExpenseResult.FromExpense).ToArray(),
             settlement, calculationError);
     }

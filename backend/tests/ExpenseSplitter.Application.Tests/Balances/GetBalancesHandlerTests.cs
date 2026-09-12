@@ -12,7 +12,7 @@ public sealed class GetBalancesHandlerTests
     {
         var (trip, alice, bob, charlie) = CreateTripWithExpenses();
         var store = new StubTripStore(trip);
-        var handler = new GetBalancesHandler(store, new AllowTripAccess());
+        var handler = new GetBalancesHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, null, cancellation.Token);
@@ -30,7 +30,7 @@ public sealed class GetBalancesHandlerTests
     public async Task ReturnsOnlySelectedParticipantBalances()
     {
         var (trip, alice, bob, _) = CreateTripWithExpenses();
-        var handler = new GetBalancesHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetBalancesHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(
             trip.Id,
@@ -47,7 +47,7 @@ public sealed class GetBalancesHandlerTests
     public async Task EmptySelectionReturnsAllParticipantBalances()
     {
         var (trip, _, _, _) = CreateTripWithExpenses();
-        var handler = new GetBalancesHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetBalancesHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(trip.Id, [], CancellationToken.None);
 
@@ -64,7 +64,7 @@ public sealed class GetBalancesHandlerTests
         for (var index = 0; index < 101; index++)
             trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
 
-        var handler = new GetBalancesHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetBalancesHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         await Assert.ThrowsAsync<OverflowException>(() =>
             handler.HandleAsync(trip.Id, null, CancellationToken.None));
@@ -74,7 +74,7 @@ public sealed class GetBalancesHandlerTests
     public async Task RejectsDuplicateParticipantIds()
     {
         var (trip, alice, _, _) = CreateTripWithExpenses();
-        var handler = new GetBalancesHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetBalancesHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(
             trip.Id,
@@ -86,7 +86,7 @@ public sealed class GetBalancesHandlerTests
     public async Task RejectsParticipantFromAnotherTrip()
     {
         var (trip, _, _, _) = CreateTripWithExpenses();
-        var handler = new GetBalancesHandler(new StubTripStore(trip), new AllowTripAccess());
+        var handler = new GetBalancesHandler(new StubTripStore(trip), new TestCurrentAccount());
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(
             trip.Id,
@@ -97,7 +97,7 @@ public sealed class GetBalancesHandlerTests
     [Fact]
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
-        var handler = new GetBalancesHandler(new StubTripStore(null), new AllowTripAccess());
+        var handler = new GetBalancesHandler(new StubTripStore(null), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),
@@ -140,6 +140,7 @@ public sealed class GetBalancesHandlerTests
 
         public override Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
             Guid id,
+            Guid accountId,
             CancellationToken cancellationToken)
         {
             RequestedId = id;

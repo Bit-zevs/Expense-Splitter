@@ -44,8 +44,11 @@ Logout очищает cookie текущего браузера. Смена па�
 прочие сессии проверяет стандартный SecurityStampValidator (интервал 30 минут).
 Logout не отзывает немедленно ранее скопированные cookie. Членство поездки проверяется
 по БД на каждом запросе, поэтому удаление участника сразу закрывает ему доступ.
-Почтовый sender, восстановление забытого пароля, внешние провайдеры и 2FA пока не
-экспонируются; есть смена известного текущего пароля.
+Восстановление пароля использует стандартный одноразовый Identity reset token
+(по умолчанию срок действия — один день), закодированный Base64Url и отправляемый
+через SMTP. Ответ `forgotPassword` одинаков для известного и неизвестного email.
+SMTP задаётся ключами `Email:Smtp:{Host,Port,UserName,Password,FromAddress,EnableSsl}`;
+пароль следует хранить в secrets/environment. Внешние провайдеры и 2FA пока не экспонируются.
 
 Порядок вызовов из браузера/API-клиента:
 
@@ -58,13 +61,20 @@ Logout не отзывает немедленно ранее скопирова�
 для таких endpoints недостаточно. Невалидный CSRF возвращает 400. Проверка входа
 выполняется раньше CSRF: анонимный вызов защищённого endpoint возвращает 401.
 CORS разрешает только заданные `Cors:AllowedOrigins`, с credentials, без wildcard.
+Dev-origin — только `https://localhost:5173`: при API на `https://localhost:7050`
+запрос cross-origin из-за порта, но same-site, поэтому `SameSite=Lax` cookie работает.
+`http://localhost:5173` намеренно не разрешён: переход HTTP → HTTPS является cross-site.
 Конфигурация рассчитана на same-site HTTPS размещение UI и API. Cross-site deployment
 требует отдельного выбора SameSite и проверки ограничений браузеров.
 
 Dev API доступен на `https://localhost:7050`; при необходимости выполнить
 `dotnet dev-certs https --trust`. Secure-cookie не работают через обычный HTTP.
-Для production нужны HTTPS и постоянное защищённое хранилище ключей Data Protection;
-при нескольких экземплярах ключи и имя приложения должны быть общими.
+Для production обязательна настройка `DataProtection:KeysPath` на постоянный защищённый
+volume; без неё API явно отказывается запускаться. При нескольких экземплярах путь
+и `DataProtection:ApplicationName` должны быть общими. До rate limiter вызывается
+Forwarded Headers middleware; доверенные адреса proxy перечисляются только явно в
+`ReverseProxy:KnownProxies` (например, `ReverseProxy__KnownProxies__0=10.0.0.10`).
+Заголовки неизвестных proxy игнорируются.
 В test host используются эфемерные ключи.
 
 ## Права
@@ -77,14 +87,15 @@ Dev API доступен на `https://localhost:7050`; при необходи�
 | Код, список заявок, одобрение и отклонение | Да | 403 | 404 |
 | Передача владения, удаление поездки | Да | 403 | 404 |
 
-Fallback policy требует вход везде, кроме health, auth register/login/csrf и
-development OpenAPI. `ITripAccess` вызывается всеми обработчиками существующих поездок.
-ICurrentAccount берёт ID из проверенной identity. Поля запроса не определяют актёра.
+Fallback policy требует вход везде, кроме health, публичных auth endpoints и
+development OpenAPI. Read-store включает текущий AccountId в SQL-фильтр, а команды
+используют `ITripAccess` и блокировку revision. ICurrentAccount берёт ID из проверенной
+identity. Поля запроса не определяют актёра.
 
 ## Коды и заявки
 
-Код: 12 случайных символов Crockford Base32, 60 бит энтропии. Алфавит:
-`0123456789ABCDEFGHJKMNPQRSTVWXYZ`. I/L/O/U исключены; 0 и 1 допустимы.
+Код: 12 случайных символов из 30-символьного алфавита, около 59 бит энтропии:
+`23456789ABCDEFGHJKMNPQRSTVWXYZ`. I/L/O/U и неоднозначные 0/1 исключены.
 Регистр и пробелы по краям несущественны; дефисы и alias-замены не принимаются.
 В БД только SHA-256 bytea (32 байта), с уникальным частичным индексом.
 Исходный код возвращается при создании поездки или ротации и недоступен через GET.
@@ -99,10 +110,11 @@ ICurrentAccount берёт ID из проверенной identity. Поля з�
 Отклонение/отмена удаляют заявку. Повторная заявка разрешена сразу.
 Дубликат pending-заявки или заявка уже состоящего в поездке аккаунта возвращают 409.
 Истории решений нет: удалённая заявка возвращает 404 независимо от причины.
-Собственная pending-заявка раскрывает только её ID, TripId и время; не содержимое поездки.
+Собственная pending-заявка раскрывает только её ID и время; TripId и содержимое поездки
+до одобрения не возвращаются.
 
 Rate limiting: auth 30 запросов/минуту на IP, ввод кода 10/минуту на аккаунт; превышение —
-429. Лимиты локальны экземпляру. За proxy следует настроить доверенные forwarded headers,
+429. Лимиты локальны экземпляру. За proxy необходимо настроить доверенные forwarded headers,
 для нескольких экземпляров общий лимит можно применять на gateway.
 
 ## Контракт API
@@ -112,9 +124,11 @@ Rate limiting: auth 30 запросов/минуту на IP, ввод кода 
 | GET `/auth/csrf` | — | 200, `{ token }` |
 | POST `/auth/register` | `{ email, password, displayName }` | 200 |
 | POST `/auth/login` | `{ email, password, rememberMe? }` | 200, cookie |
+| POST `/auth/forgotPassword` | `{ email }` | 200 независимо от наличия аккаунта |
+| POST `/auth/resetPassword` | `{ email, resetCode, newPassword }` | 200 |
 | POST `/auth/logout` | `{}` | 204 |
 | POST `/auth/change-password` | `{ currentPassword, newPassword }` | 204 |
-| POST `/trips` | `{ name, currency? }` | 201, поездка + ownerAccountId + joinCode |
+| POST `/trips` | `{ name, currency? }` | 201, поездка + ownerParticipantId + joinCode |
 | POST `/trips/{id}/join-code` | `{}` | 200, `{ code }` |
 | POST `/trip-join-requests` | `{ code }` | 201, заявка + Location |
 | GET `/trip-join-requests/{id}` | — | 200, своя pending-заявка |
@@ -122,10 +136,11 @@ Rate limiting: auth 30 запросов/минуту на IP, ввод кода 
 | GET `/trips/{id}/join-requests` | — | 200, pending-заявки с DisplayName, без email |
 | POST `/trips/{id}/join-requests/{requestId}/approve` | `{ participantId? }` | 200, Participant |
 | DELETE `/trips/{id}/join-requests/{requestId}` | — | 204, отклонение |
-| PUT `/trips/{id}/owner` | `{ accountId }` | 204 |
+| PUT `/trips/{id}/owner` | `{ participantId }` | 204 |
 
-Прежние endpoints сохранены и защищены. ParticipantResult дополнен nullable accountId;
-GetTripResult — ownerAccountId. Identity-сущности и хеш кода не сериализуются.
+Прежние endpoints сохранены и защищены. ParticipantResult содержит локальные для поездки
+`id`, `name`, `isRegistered`, `isOwner`; GetTripResult содержит `isOwner` относительно
+текущего пользователя. Глобальные AccountId, Identity-сущности и хеш кода не сериализуются.
 Ошибки — ProblemDetails/ValidationProblemDetails. 409 также обозначает запрет удаления
 владельца или конфликт записи. Старый frontend требует отдельной адаптации к авторизации.
 
@@ -136,7 +151,9 @@ GetTripResult — ownerAccountId. Identity-сущности и хеш кода �
 Самостоятельный выход и удаление аккаунта пока не представлены endpoints.
 FK аккаунта настроены Restrict, чтобы не уничтожать финансовые данные неявно.
 
-Права и данные читаются в одной RepeatableRead-транзакции. После проверки прав,
+Обычные single-query GET включают проверку членства прямо в SQL и не открывают
+транзакцию. Полный split-query snapshot использует короткую RepeatableRead-транзакцию,
+чтобы все его части видели одно состояние. Для команд после проверки прав
 перед изменением данных обновляется Revision поездки: блокируется её строка и устаревшая RR-транзакция
 получает serialization conflict (409), если доступ уже был отозван. Все изменения
 расходов/участников/заявок и передача владения используют этот порядок. Отказанные
@@ -161,4 +178,7 @@ ITripStore сохранён. Infrastructure реализует application-ко�
 - [Cookie API в .NET 10](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/api-endpoint-auth?view=aspnetcore-10.0)
 - [Resource-based authorization](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/resource-based?view=aspnetcore-10.0)
 - [Antiforgery](https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-10.0)
+- [SameSite cookies](https://learn.microsoft.com/en-us/aspnet/core/security/samesite?view=aspnetcore-10.0)
+- [Forwarded Headers](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0)
+- [Data Protection configuration](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0)
 - [HTTP RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html)

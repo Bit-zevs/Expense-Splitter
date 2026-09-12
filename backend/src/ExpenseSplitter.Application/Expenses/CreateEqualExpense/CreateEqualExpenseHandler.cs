@@ -18,7 +18,7 @@ public sealed class CreateEqualExpenseHandler(ITripStore tripStore, ITripAccess 
         CreateEqualExpenseCommand command,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: false, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: false, cancellationToken);
         ArgumentNullException.ThrowIfNull(command);
         ValidateCommand(command);
 

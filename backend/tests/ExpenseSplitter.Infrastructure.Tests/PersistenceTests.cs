@@ -30,7 +30,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         using var interceptor = new PauseAfterParticipantsInterceptor();
         var readOptions = new DbContextOptionsBuilder<ExpenseSplitterDbContext>(options).AddInterceptors(interceptor).Options;
         await using var read = new ExpenseSplitterDbContext(readOptions);
-        var handler = new ExpenseSplitter.Application.Trips.GetTripSnapshot.GetTripSnapshotHandler(new TripStore(read), new AllowTripAccess());
+        var handler = new ExpenseSplitter.Application.Trips.GetTripSnapshot.GetTripSnapshotHandler(new TripStore(read), new TestCurrentAccount());
         var pending = handler.HandleAsync(trip.Id, CancellationToken.None);
         await interceptor.ParticipantsLoaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
         try
@@ -48,7 +48,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         Assert.Empty(snapshot.Expenses);
         Assert.Equal(0m, Assert.Single(snapshot.Settlement!.Balances).Balance);
         await using var fresh = new ExpenseSplitterDbContext(options);
-        var latest = await new ExpenseSplitter.Application.Trips.GetTripSnapshot.GetTripSnapshotHandler(new TripStore(fresh), new AllowTripAccess())
+        var latest = await new ExpenseSplitter.Application.Trips.GetTripSnapshot.GetTripSnapshotHandler(new TripStore(fresh), new TestCurrentAccount())
             .HandleAsync(trip.Id, CancellationToken.None);
         Assert.Equal(2, latest!.Participants.Count);
         Assert.Single(latest.Expenses);
@@ -261,6 +261,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
             var loaded = Assert.IsType<Trip>(
                 await new TripStore(context).FindWithExpensesByIdAsync(
                     trip.Id,
+                    TestTrips.OwnerId,
                     CancellationToken.None));
 
             Assert.Empty(loaded.Participants);
@@ -286,23 +287,17 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         await using var context = new ExpenseSplitterDbContext(options);
         var store = new TripStore(context);
 
-        var loadedParticipant = Assert.IsType<Participant>(
-            await store.FindParticipantByIdAsync(
-                trip.Id,
-                participant.Id,
-                CancellationToken.None));
+        var loadedParticipant = Assert.IsType<Trip>(await store.FindWithParticipantsByIdAsync(
+            trip.Id, TestTrips.OwnerId, CancellationToken.None)).Participants.Single(p => p.Id == participant.Id);
         var loadedExpense = Assert.IsType<Expense>(
-            await store.FindExpenseByIdAsync(trip.Id, expense.Id, CancellationToken.None));
+            await store.FindExpenseByIdAsync(trip.Id, expense.Id, TestTrips.OwnerId, CancellationToken.None));
 
         Assert.Equal(participant.Name, loadedParticipant.Name);
         Assert.Single(loadedExpense.Shares);
-        Assert.Null(await store.FindParticipantByIdAsync(
-            otherTrip.Id,
-            participant.Id,
-            CancellationToken.None));
         Assert.Null(await store.FindExpenseByIdAsync(
             otherTrip.Id,
             expense.Id,
+            TestTrips.OwnerId,
             CancellationToken.None));
         Assert.Empty(context.ChangeTracker.Entries());
     }
@@ -329,7 +324,7 @@ public sealed class PersistenceTests(PostgreSqlFixture database) : IClassFixture
         var store = new TripStore(read);
         var loadTask = forWrite
             ? store.FindWithParticipantsAndExpensesTrackedAsync(trip.Id, CancellationToken.None)
-            : store.FindWithParticipantsAndExpensesByIdAsync(trip.Id, CancellationToken.None);
+            : store.FindWithParticipantsAndExpensesByIdAsync(trip.Id, TestTrips.OwnerId, CancellationToken.None);
 
         await interceptor.ParticipantsLoaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
         try

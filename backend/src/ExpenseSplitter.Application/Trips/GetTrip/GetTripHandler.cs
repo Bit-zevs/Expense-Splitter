@@ -6,19 +6,18 @@ public sealed record GetTripResult(
     string Name,
     string Currency,
     DateTimeOffset CreatedAt,
-    Guid OwnerAccountId);
+    bool IsOwner);
 
-public sealed class GetTripHandler(ITripStore tripStore, ITripAccess access)
+public sealed class GetTripHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<GetTripResult?> HandleAsync(
         Guid id,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(id, ownerOnly: false, write: false, cancellationToken);
-        var trip = await tripStore.FindByIdAsync(id, cancellationToken);
+        var trip = await tripStore.FindByIdAsync(id, account.Id, cancellationToken);
 
         return trip is null
             ? null
-            : new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, trip.OwnerAccountId);
+            : new GetTripResult(trip.Id, trip.Name, trip.Currency, trip.CreatedAt, trip.OwnerAccountId == account.Id);
     }
 }

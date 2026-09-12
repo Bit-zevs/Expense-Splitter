@@ -10,7 +10,7 @@ public sealed class AddParticipantHandler(ITripStore tripStore, ITripAccess acce
         string? name,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: true, cancellationToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));
 
         var trip = await tripStore.FindTrackedAsync(tripId, cancellationToken);
@@ -22,6 +22,6 @@ public sealed class AddParticipantHandler(ITripStore tripStore, ITripAccess acce
         var participant = trip.AddParticipant(name!);
         await tripStore.SaveChangesAsync(cancellationToken);
 
-        return new ParticipantResult(participant.Id, participant.Name, participant.AccountId);
+        return new ParticipantResult(participant.Id, participant.Name, IsRegistered: false, IsOwner: false);
     }
 }

@@ -19,7 +19,7 @@ public sealed class GetTripSnapshotHandlerTests
             trip.AddEqualExpense(MoneyLimits.MaximumAmount, "Expense", payer.Id, [debtor.Id]);
         var store = new Store(trip);
         using var cancellation = new CancellationTokenSource();
-        var result = Assert.IsType<TripSnapshotResult>(await new GetTripSnapshotHandler(store, new AllowTripAccess()).HandleAsync(trip.Id, cancellation.Token));
+        var result = Assert.IsType<TripSnapshotResult>(await new GetTripSnapshotHandler(store, new TestCurrentAccount()).HandleAsync(trip.Id, cancellation.Token));
         Assert.Equal(1, store.Calls);
         Assert.Equal(cancellation.Token, store.Token);
         Assert.Equal(trip.Id, result.Trip.Id);
@@ -32,14 +32,15 @@ public sealed class GetTripSnapshotHandlerTests
     [Fact]
     public async Task MissingTripReturnsNull()
     {
-        Assert.Null(await new GetTripSnapshotHandler(new Store(null), new AllowTripAccess()).HandleAsync(Guid.NewGuid(), CancellationToken.None));
+        Assert.Null(await new GetTripSnapshotHandler(new Store(null), new TestCurrentAccount()).HandleAsync(Guid.NewGuid(), CancellationToken.None));
     }
 
     private sealed class Store(Trip? trip) : TripStoreStub
     {
         public int Calls { get; private set; }
         public CancellationToken Token { get; private set; }
-        public override Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(Guid id, CancellationToken cancellationToken)
+        public override Task<Trip?> FindWithParticipantsAndExpensesByIdAsync(
+            Guid id, Guid accountId, CancellationToken cancellationToken)
         {
             Calls++;
             Token = cancellationToken;

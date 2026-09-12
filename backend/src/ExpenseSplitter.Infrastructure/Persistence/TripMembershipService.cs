@@ -12,7 +12,7 @@ internal sealed class TripMembershipService(
 {
     public async Task<string> RotateCodeAsync(Guid tripId, CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: true, cancellationToken);
         var trip = await db.Trips.SingleAsync(t => t.Id == tripId, cancellationToken);
         var code = JoinCode.Generate();
         trip.SetJoinCodeHash(JoinCode.Hash(code));
@@ -52,10 +52,21 @@ internal sealed class TripMembershipService(
 
     public async Task<IReadOnlyList<PendingMemberResult>> ListAsync(Guid tripId, CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: false, cancellationToken);
+        var accountId = account.Id;
+        var accessState = await db.Trips.Where(t => t.Id == tripId)
+            .Select(t => new
+            {
+                IsOwner = t.OwnerAccountId == accountId,
+                IsMember = t.OwnerAccountId == accountId || t.Participants.Any(p => p.AccountId == accountId)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (accessState is null || !accessState.IsMember) throw new AccessException(404);
+        if (!accessState.IsOwner) throw new AccessException(403);
+
         return await (from request in db.TripJoinRequests
                       join user in db.Users on request.AccountId equals user.Id
                       where request.TripId == tripId
+                          && db.Trips.Any(t => t.Id == tripId && t.OwnerAccountId == accountId)
                       orderby request.RequestedAt, request.Id
                       select new PendingMemberResult(request.Id, user.DisplayName, request.RequestedAt))
             .ToArrayAsync(cancellationToken);
@@ -63,7 +74,7 @@ internal sealed class TripMembershipService(
 
     public async Task<ParticipantResult> ApproveAsync(Guid tripId, Guid requestId, Guid? participantId, CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: true, cancellationToken);
         var request = await FindAsync(tripId, requestId, cancellationToken);
         var trip = await db.Trips.Include(t => t.Participants).SingleAsync(t => t.Id == tripId, cancellationToken);
         if (trip.Participants.Any(p => p.AccountId == request.AccountId))
@@ -78,20 +89,24 @@ internal sealed class TripMembershipService(
         var participant = trip.AddAccountParticipant(request.AccountId, name, participantId);
         db.TripJoinRequests.Remove(request);
         await store.SaveChangesAsync(cancellationToken);
-        return new ParticipantResult(participant.Id, participant.Name, participant.AccountId);
+        return new ParticipantResult(participant.Id, participant.Name, IsRegistered: true, IsOwner: false);
     }
 
     public async Task RejectAsync(Guid tripId, Guid requestId, CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: true, cancellationToken);
         db.TripJoinRequests.Remove(await FindAsync(tripId, requestId, cancellationToken));
         await store.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task TransferOwnerAsync(Guid tripId, Guid accountId, CancellationToken cancellationToken)
+    public async Task TransferOwnerAsync(Guid tripId, Guid participantId, CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: true, write: true, cancellationToken);
+        await access.RequireWriteAsync(tripId, ownerOnly: true, cancellationToken);
         var trip = await db.Trips.Include(t => t.Participants).SingleAsync(t => t.Id == tripId, cancellationToken);
+        var participant = trip.Participants.SingleOrDefault(p => p.Id == participantId)
+            ?? throw new AccessException(404);
+        if (participant.AccountId is not { } accountId)
+            throw new ConflictException("Ownership can only be transferred to a registered participant.");
         trip.TransferOwnership(accountId);
         await store.SaveChangesAsync(cancellationToken);
     }
@@ -107,5 +122,5 @@ internal sealed class TripMembershipService(
         await db.TripJoinRequests.SingleOrDefaultAsync(r => r.Id == id && r.TripId == tripId, cancellationToken)
         ?? throw new AccessException(404);
 
-    private static JoinRequestResult Result(TripJoinRequest request) => new(request.Id, request.TripId, request.RequestedAt);
+    private static JoinRequestResult Result(TripJoinRequest request) => new(request.Id, request.RequestedAt);
 }

@@ -11,7 +11,7 @@ public sealed class GetTripHandlerTests
     {
         var trip = TestTrips.Create("Summer vacation", "USD");
         var store = new StubTripStore(trip);
-        var handler = new GetTripHandler(store, new AllowTripAccess());
+        var handler = new GetTripHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(trip.Id, cancellation.Token);
@@ -29,7 +29,7 @@ public sealed class GetTripHandlerTests
     public async Task ReturnsNullWhenTripDoesNotExist()
     {
         var store = new StubTripStore(null);
-        var handler = new GetTripHandler(store, new AllowTripAccess());
+        var handler = new GetTripHandler(store, new TestCurrentAccount());
 
         var result = await handler.HandleAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -42,7 +42,7 @@ public sealed class GetTripHandlerTests
 
         public CancellationToken CancellationToken { get; private set; }
 
-        public override Task<Trip?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
+        public override Task<Trip?> FindByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken)
         {
             RequestedId = id;
             CancellationToken = cancellationToken;

@@ -44,20 +44,22 @@ public sealed class AccessConcurrencyTests(PostgreSqlFixture database) : IClassF
         }
         await using var stale = new ExpenseSplitterDbContext(options);
         var staleAccess = new TripAccess(stale, new Account(memberId));
-        await staleAccess.RequireAsync(trip.Id, false, false, CancellationToken.None);
+        await staleAccess.BeginAsync(CancellationToken.None);
+        Assert.True(await stale.Trips.AnyAsync(t => t.Id == trip.Id
+            && t.Participants.Any(p => p.AccountId == memberId)));
 
         await using (var revoker = new ExpenseSplitterDbContext(options))
         {
-            await new TripAccess(revoker, new TestCurrentAccount()).RequireAsync(trip.Id, true, true, CancellationToken.None);
+            await new TripAccess(revoker, new TestCurrentAccount()).RequireWriteAsync(trip.Id, true, CancellationToken.None);
             var tracked = await revoker.Trips.Include(t => t.Participants).SingleAsync(t => t.Id == trip.Id);
             Assert.True(tracked.RemoveParticipant(member.Id));
             await new TripStore(revoker).SaveChangesAsync(CancellationToken.None);
         }
 
-        await Assert.ThrowsAsync<WriteConflictException>(() => staleAccess.RequireAsync(trip.Id, false, true, CancellationToken.None));
+        await Assert.ThrowsAsync<WriteConflictException>(() => staleAccess.RequireWriteAsync(trip.Id, false, CancellationToken.None));
         await using var fresh = new ExpenseSplitterDbContext(options);
         var denied = await Assert.ThrowsAsync<AccessException>(() => new TripAccess(fresh, new Account(memberId))
-            .RequireAsync(trip.Id, false, true, CancellationToken.None));
+            .RequireWriteAsync(trip.Id, false, CancellationToken.None));
         Assert.Equal(404, denied.StatusCode);
     }
 

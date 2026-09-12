@@ -79,9 +79,10 @@ npm install
 npm run dev
 ```
 
-The development server opens at `http://localhost:5173` and uses
-`http://localhost:5050` as the default API address. Set `VITE_API_BASE_URL` in
-`frontend/.env.local` when the API is hosted elsewhere. See
+Cookie authentication expects the development UI at `https://localhost:5173` and
+the API at `https://localhost:7050`; both must use HTTPS so `SameSite=Lax` remains
+same-site. Configure the frontend development server certificate and set
+`VITE_API_BASE_URL=https://localhost:7050` in `frontend/.env.local`. See
 [`frontend/README.md`](frontend/README.md) for the frontend commands.
 
 Integration tests require a running Docker engine with Linux containers. They create

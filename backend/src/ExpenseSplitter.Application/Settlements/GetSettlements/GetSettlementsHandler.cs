@@ -15,16 +15,14 @@ public sealed record GetSettlementsResult(
     IReadOnlyCollection<SettlementBalanceResult> Balances,
     IReadOnlyCollection<SettlementTransferResult> Transfers);
 
-public sealed class GetSettlementsHandler(ITripStore tripStore, ITripAccess access)
+public sealed class GetSettlementsHandler(ITripStore tripStore, ICurrentAccount account)
 {
     public async Task<GetSettlementsResult?> HandleAsync(
         Guid tripId,
         CancellationToken cancellationToken)
     {
-        await access.RequireAsync(tripId, ownerOnly: false, write: false, cancellationToken);
         var trip = await tripStore.FindWithParticipantsAndExpensesByIdAsync(
-            tripId,
-            cancellationToken);
+            tripId, account.Id, cancellationToken);
         if (trip is null)
         {
             return null;

@@ -11,7 +11,7 @@ internal sealed class TestCurrentAccount : ICurrentAccount
 // Existing calculation/serialization tests isolate authorization; security tests use the real implementation.
 internal sealed class AllowTripAccess : ITripAccess
 {
-    public Task RequireAsync(Guid tripId, bool ownerOnly, bool write, CancellationToken cancellationToken)
+    public Task RequireWriteAsync(Guid tripId, bool ownerOnly, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;

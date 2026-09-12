@@ -10,9 +10,10 @@ public sealed class GetParticipantHandlerTests
     public async Task ReturnsParticipantFromRequestedTrip()
     {
         var tripId = Guid.NewGuid();
-        var participant = TestTrips.Create("Trip").AddParticipant("Alice");
-        var store = new StubTripStore(participant);
-        var handler = new GetParticipantHandler(store, new AllowTripAccess());
+        var trip = TestTrips.Create("Trip");
+        var participant = trip.AddParticipant("Alice");
+        var store = new StubTripStore(trip);
+        var handler = new GetParticipantHandler(store, new TestCurrentAccount());
         using var cancellation = new CancellationTokenSource();
 
         var result = await handler.HandleAsync(
@@ -24,14 +25,13 @@ public sealed class GetParticipantHandlerTests
         Assert.Equal(participant.Id, result.Id);
         Assert.Equal(participant.Name, result.Name);
         Assert.Equal(tripId, store.RequestedTripId);
-        Assert.Equal(participant.Id, store.RequestedParticipantId);
         Assert.Equal(cancellation.Token, store.CancellationToken);
     }
 
     [Fact]
     public async Task ReturnsNullWhenParticipantDoesNotExist()
     {
-        var handler = new GetParticipantHandler(new StubTripStore(null), new AllowTripAccess());
+        var handler = new GetParticipantHandler(new StubTripStore(null), new TestCurrentAccount());
 
         var result = await handler.HandleAsync(
             Guid.NewGuid(),
@@ -41,23 +41,20 @@ public sealed class GetParticipantHandlerTests
         Assert.Null(result);
     }
 
-    private sealed class StubTripStore(Participant? participant) : TripStoreStub
+    private sealed class StubTripStore(Trip? trip) : TripStoreStub
     {
         public Guid RequestedTripId { get; private set; }
 
-        public Guid RequestedParticipantId { get; private set; }
-
         public CancellationToken CancellationToken { get; private set; }
 
-        public override Task<Participant?> FindParticipantByIdAsync(
+        public override Task<Trip?> FindWithParticipantsByIdAsync(
             Guid tripId,
-            Guid participantId,
+            Guid accountId,
             CancellationToken cancellationToken)
         {
             RequestedTripId = tripId;
-            RequestedParticipantId = participantId;
             CancellationToken = cancellationToken;
-            return Task.FromResult(participant);
+            return Task.FromResult(trip);
         }
     }
 }
